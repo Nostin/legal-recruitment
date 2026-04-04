@@ -1,0 +1,165 @@
+"use client"
+import { useState } from "react";
+import Link from "next/link";
+import { motion } from "framer-motion";
+import { Shield, Eye, EyeOff, Ban, Bell, Save } from "lucide-react";
+import { Button } from "@/app/components/ui/button";
+import { Badge } from "@/app/components/ui/badge";
+import { Switch } from "@/app/components/ui/switch";
+import { Label } from "@/app/components/ui/label";
+import { toast } from "sonner";
+
+const allFirms = [
+  "Allens", "Ashurst", "Baker McKenzie", "Clayton Utz", "Corrs Chambers Westgarth",
+  "DLA Piper", "Herbert Smith Freehills", "King & Wood Mallesons", "MinterEllison", "Norton Rose Fulbright",
+];
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  visible: (i: number) => ({
+    opacity: 1, y: 0,
+    transition: { delay: i * 0.08, duration: 0.45, ease: [0.25, 0.46, 0.45, 0.94] as [number, number, number, number] },
+  }),
+};
+
+const LawyerSettings = () => {
+  const [blockedFirms, setBlockedFirms] = useState<string[]>(["Herbert Smith Freehills"]);
+  const [visibility, setVisibility] = useState<"anonymous" | "tier" | "firm">("anonymous");
+  const [openToIntros, setOpenToIntros] = useState(true);
+
+  const toggleBlock = (firm: string) => {
+    setBlockedFirms(prev =>
+      prev.includes(firm) ? prev.filter(f => f !== firm) : [...prev, firm]
+    );
+  };
+
+  const handleSave = () => {
+    toast.success("Settings saved", { description: "Your visibility preferences have been updated." });
+  };
+
+  return (
+    <div className="min-h-screen bg-background">
+      <nav className="border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-50">
+        <div className="container max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
+          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Counsel</Link>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" asChild><Link href="/notifications">Notifications</Link></Button>
+            <Button size="sm" variant="outline" asChild><Link href="/">Sign Out</Link></Button>
+          </div>
+        </div>
+      </nav>
+
+      <div className="container max-w-2xl mx-auto px-6 py-12">
+        <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
+          <h1 className="font-display text-3xl font-semibold text-foreground mb-1">Visibility Controls</h1>
+          <p className="text-muted-foreground text-sm mb-10">
+            Manage how your anonymous profile appears to hiring firms and control who can contact you.
+          </p>
+        </motion.div>
+
+        {/* Block Firms */}
+        <motion.div
+          className="rounded-2xl border border-border bg-card p-6 mb-6"
+          initial="hidden" animate="visible" variants={fadeUp} custom={1}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-9 w-9 rounded-lg bg-destructive/10 flex items-center justify-center">
+              <Ban className="h-4 w-4 text-destructive" />
+            </div>
+            <div>
+              <h3 className="font-display text-base font-semibold text-foreground">Block Specific Firms</h3>
+              <p className="text-xs text-muted-foreground">Your profile will be hidden from these firms entirely.</p>
+            </div>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {allFirms.map(firm => (
+              <Badge
+                key={firm}
+                variant={blockedFirms.includes(firm) ? "destructive" : "outline"}
+                className="cursor-pointer transition-colors"
+                onClick={() => toggleBlock(firm)}
+              >
+                {blockedFirms.includes(firm) && <Ban className="h-3 w-3 mr-1" />}
+                {firm}
+              </Badge>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Visibility Level */}
+        <motion.div
+          className="rounded-2xl border border-border bg-card p-6 mb-6"
+          initial="hidden" animate="visible" variants={fadeUp} custom={2}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-9 w-9 rounded-lg bg-accent-muted flex items-center justify-center">
+              <Eye className="h-4 w-4 text-accent" />
+            </div>
+            <div>
+              <h3 className="font-display text-base font-semibold text-foreground">Visibility Level</h3>
+              <p className="text-xs text-muted-foreground">Choose how much information firms can see before you accept an introduction.</p>
+            </div>
+          </div>
+          <div className="space-y-3">
+            {[
+              { key: "anonymous" as const, label: "Fully Anonymous", desc: "Only practice area, PQE, and location are visible.", icon: EyeOff },
+              { key: "tier" as const, label: "Tier Only Visible", desc: "Firm tier is shown alongside practice area and PQE.", icon: Shield },
+              { key: "firm" as const, label: "Current Firm Visible", desc: "Your current firm name is displayed on your profile.", icon: Eye },
+            ].map(opt => (
+              <button
+                key={opt.key}
+                onClick={() => setVisibility(opt.key)}
+                className={`w-full flex items-start gap-3 rounded-xl border p-4 text-left transition-colors ${
+                  visibility === opt.key
+                    ? "border-accent bg-accent-muted/50"
+                    : "border-border hover:bg-muted/50"
+                }`}
+              >
+                <div className={`h-8 w-8 rounded-lg flex items-center justify-center shrink-0 ${
+                  visibility === opt.key ? "bg-accent text-accent-foreground" : "bg-muted text-muted-foreground"
+                }`}>
+                  <opt.icon className="h-4 w-4" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-foreground">{opt.label}</p>
+                  <p className="text-xs text-muted-foreground">{opt.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </motion.div>
+
+        {/* Availability */}
+        <motion.div
+          className="rounded-2xl border border-border bg-card p-6 mb-8"
+          initial="hidden" animate="visible" variants={fadeUp} custom={3}
+        >
+          <div className="flex items-center gap-3 mb-4">
+            <div className="h-9 w-9 rounded-lg bg-accent-muted flex items-center justify-center">
+              <Bell className="h-4 w-4 text-accent" />
+            </div>
+            <div>
+              <h3 className="font-display text-base font-semibold text-foreground">Availability</h3>
+              <p className="text-xs text-muted-foreground">Control whether firms can send you introduction requests this month.</p>
+            </div>
+          </div>
+          <div className="flex items-center justify-between rounded-xl border border-border p-4">
+            <div>
+              <Label className="text-sm font-medium text-foreground">Open to introductions this month</Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                {openToIntros ? "You will appear in search results and receive requests." : "Your profile is hidden from all searches."}
+              </p>
+            </div>
+            <Switch checked={openToIntros} onCheckedChange={setOpenToIntros} />
+          </div>
+        </motion.div>
+
+        <Button size="lg" className="w-full" onClick={handleSave}>
+          <Save className="mr-2 h-4 w-4" /> Save Settings
+        </Button>
+      </div>
+    </div>
+  );
+};
+
+export default LawyerSettings;
