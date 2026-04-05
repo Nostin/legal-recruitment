@@ -1,7 +1,7 @@
 """
 Local development seed (idempotent).
 
-- Ensures a demo firm user + firm profile (Phase 1 baseline).
+- Upserts firm users + profiles from app.seeds.firm_fixtures (Phase 3 onboarding shape).
 - Ensures one legacy demo candidate (seed_clerk_candidate).
 - Upserts candidate users/profiles by parsing frontend/data/candidates.ts (see
   app.seeds.candidate_fixtures for column mapping). Re-runs refresh mapped fields.
@@ -26,26 +26,31 @@ from app.seeds.candidate_fixtures import (  # noqa: E402
     fixture_row_to_candidate_fields,
     load_candidates_from_ts,
 )
+from app.seeds.firm_fixtures import FIRM_FIXTURES, fixture_to_profile_fields  # noqa: E402
 
 
-def _ensure_firm_baseline(db) -> None:
-    if db.query(User).filter(User.clerk_user_id == "seed_clerk_firm").first():
-        return
-    firm_user = User(
-        clerk_user_id="seed_clerk_firm",
-        email="firm.seed@example.com",
-        account_type=AccountType.firm,
-    )
-    db.add(firm_user)
-    db.flush()
-    db.add(
-        FirmProfile(
-            user_id=firm_user.id,
-            firm_name="Seed Example Partners",
-            office_locations=["Sydney", "Melbourne"],
-            hiring_practice_areas=["Corporate / M&A", "Litigation"],
+def _upsert_firm_fixtures(db) -> None:
+    """Insert or update firm users + profiles from FIRM_FIXTURES (idempotent)."""
+    for fix in FIRM_FIXTURES:
+        fields = fixture_to_profile_fields(fix)
+        user = db.query(User).filter(User.clerk_user_id == fix["clerk_user_id"]).first()
+        if user is None:
+            user = User(
+                clerk_user_id=fix["clerk_user_id"],
+                email=fix["email"],
+                account_type=AccountType.firm,
+            )
+            db.add(user)
+            db.flush()
+
+        profile = (
+            db.query(FirmProfile).filter(FirmProfile.user_id == user.id).first()
         )
-    )
+        if profile is None:
+            db.add(FirmProfile(user_id=user.id, **fields))
+        else:
+            for key, value in fields.items():
+                setattr(profile, key, value)
 
 
 def _ensure_legacy_candidate(db) -> None:
@@ -108,12 +113,13 @@ def _upsert_ts_fixture_candidates(db) -> None:
 def main() -> None:
     db = SessionLocal()
     try:
-        _ensure_firm_baseline(db)
+        _upsert_firm_fixtures(db)
         _ensure_legacy_candidate(db)
         _upsert_ts_fixture_candidates(db)
         db.commit()
-        n_profiles = db.query(CandidateProfile).count()
-        print(f"Seed completed. Total candidate_profiles: {n_profiles}")
+        n_c = db.query(CandidateProfile).count()
+        n_f = db.query(FirmProfile).count()
+        print(f"Seed completed. candidate_profiles={n_c}, firm_profiles={n_f}")
     except Exception:
         db.rollback()
         raise

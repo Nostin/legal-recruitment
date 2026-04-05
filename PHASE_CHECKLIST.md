@@ -1,8 +1,8 @@
 # App Build Phase Checklist
 
 - Phase 1 - Complete
-- Phase 2 - Not Started
-- Phase 3 - Not Started
+- Phase 2 - Complete
+- Phase 3 - Complete
 - Phase 4 - Not Started
 - Phase 5 - Not Started
 - Phase 6 - Not Started
