@@ -83,6 +83,29 @@ Do **not** implement any of the following in this phase:
 
 ---
 
+## Preflight Check
+
+Before making any backend or database changes, verify database access from the exact execution environment being used for this phase.
+
+Run and report the result of:
+
+- pwd
+- whoami
+- python --version
+- which psql
+- psql --version
+- echo $DATABASE_URL
+- psql "$DATABASE_URL" -c "select current_database(), current_user;"
+- psql "$DATABASE_URL" -c "\dt"
+
+If DATABASE_URL is not set, load it from the expected local .env file and report that step explicitly.
+
+Do not assume database access based on previous phases or based on the user’s local terminal.
+Do not proceed with migrations or seed steps until database access is verified successfully.
+If database access fails, stop and report the exact failure.
+
+---
+
 ## Implementation Requirements
 
 ### Python environment
