@@ -1,6 +1,6 @@
 # OpenCourt backend (FastAPI)
 
-Python API for OpenCourt. Phase 1 provides the app shell, PostgreSQL integration, Alembic migrations, and a minimal seed script.
+Python API for OpenCourt: FastAPI shell, PostgreSQL, Alembic migrations, seed data, and candidate REST endpoints (Phase 2).
 
 ## Prerequisites
 
@@ -45,7 +45,7 @@ source .venv/bin/activate
 python scripts/seed.py
 ```
 
-Re-running the seed is safe; it no-ops if seed users already exist.
+Re-running the seed is safe: it upserts the baseline firm, legacy demo candidate, and **all rows** parsed from `../frontend/data/candidates.ts` (see `app/seeds/candidate_fixtures.py` for mapping). Existing `seed_ts_candidate_*` profiles are refreshed on each run.
 
 ## Run the API
 
@@ -58,6 +58,17 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 - OpenAPI docs: http://127.0.0.1:8000/docs  
 - Health: http://127.0.0.1:8000/api/health  
 
+### Candidates (Phase 2)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/candidates` | List candidate profiles |
+| GET | `/candidates/{id}` | Get one profile by `candidate_profiles.id` |
+| POST | `/candidates` | Create profile (JSON body includes required `user_id` for a **candidate** user) |
+| PUT | `/candidates/{id}` | Partial update |
+
+There is no Clerk token verification on these routes in this phase.
+
 ## Layout
 
 | Path | Purpose |
@@ -69,5 +80,6 @@ uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 | `app/routes/` | Route modules |
 | `alembic/` | Migrations |
 | `scripts/seed.py` | Local seed |
+| `app/seeds/candidate_fixtures.py` | Static rows aligned with `frontend/data/candidates.ts` |
 
 Swapping the database (e.g. to Neon) only requires changing `DATABASE_URL`; no code changes are required for the connection string itself.

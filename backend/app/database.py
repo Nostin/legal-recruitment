@@ -7,9 +7,19 @@ from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
 load_dotenv()
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL",
-    "postgresql+psycopg://seanthompson@localhost:5432/legal",
+
+def _normalize_database_url(url: str) -> str:
+    """Use psycopg v3 driver; plain postgresql:// would otherwise imply psycopg2."""
+    if url.startswith("postgresql://") and not url.startswith("postgresql+"):
+        return "postgresql+psycopg://" + url.removeprefix("postgresql://")
+    return url
+
+
+DATABASE_URL = _normalize_database_url(
+    os.environ.get(
+        "DATABASE_URL",
+        "postgresql+psycopg://seanthompson@localhost:5432/legal",
+    )
 )
 
 
