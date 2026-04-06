@@ -1,8 +1,11 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
-import { ArrowLeft, ArrowRight, Briefcase, MapPin, GraduationCap, Shield, BadgeCheck, Linkedin, Mail, X, Star, Building, StickyNote, Clock, Home, DollarSign, Languages } from "lucide-react";
+import { toast } from "sonner";
+import { ArrowLeft, ArrowRight, Briefcase, MapPin, GraduationCap, Shield, BadgeCheck, Linkedin, Mail, X, Star, StickyNote, Clock, Home, DollarSign, Languages } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
@@ -11,6 +14,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Slider } from "@/app/components/ui/slider";
 import { Badge } from "@/app/components/ui/badge";
 import { Textarea } from "@/app/components/ui/textarea";
+import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
+import {
+  createCandidate,
+  updateCandidate,
+  fetchCandidateForUser,
+  wizardStateToCandidateBody,
+  CandidatesApiError,
+  type CandidateRead,
+} from "@/lib/candidates-api";
 
 const practiceAreas = ["Corporate / M&A", "Litigation", "Banking & Finance", "Employment", "Real Estate", "Tax", "IP / Technology", "Regulatory"];
 const firmTiers = ["Top Tier", "Mid Tier", "Boutique"];
@@ -36,7 +48,24 @@ const workArrangements = ["On Site", "Hybrid", "Remote"];
 
 const TOTAL_STEPS = 5;
 
+function nearestSalaryIndex(k: number): number {
+  let best = 0;
+  let bestD = Infinity;
+  salaryMarks.forEach((m, idx) => {
+    const d = Math.abs(m - k);
+    if (d < bestD) {
+      bestD = d;
+      best = idx;
+    }
+  });
+  return best;
+}
+
 const ProfileBuilder = () => {
+  const router = useRouter();
+  const { isLoaded: clerkLoaded } = useUser();
+  const { localUser, bootstrapLoading, bootstrapError } = useOpenCourtUser();
+
   const [step, setStep] = useState(1);
   const [practiceArea, setPracticeArea] = useState("");
   const [pqe, setPqe] = useState([5]);
@@ -65,6 +94,187 @@ const ProfileBuilder = () => {
   const [excludeSearch, setExcludeSearch] = useState("");
   const [preferredDestinations, setPreferredDestinations] = useState<string[]>([]);
   const [specificFirmPreference, setSpecificFirmPreference] = useState("");
+
+  const [loadedRow, setLoadedRow] = useState<CandidateRead | null>(null);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const applyLoadedProfile = useCallback((p: CandidateRead) => {
+    setLoadedRow(p);
+    setPracticeArea(p.practice_area ?? "");
+    setPqeIsRange(p.pqe_is_range);
+    if (p.pqe_is_range) {
+      setPqeRange([
+        p.pqe_range_min ?? 0,
+        p.pqe_range_max ?? 0,
+      ]);
+    } else {
+      setPqe([p.years_post_qualification ?? 0]);
+    }
+    setFirmTier(p.firm_tier ?? "");
+    setUniversity(p.university ?? "");
+    setSelectedLocations(p.preferred_locations ?? []);
+    setOpenToRoles(p.open_to_roles);
+    setNotes(p.profile_summary ?? "");
+    if (
+      p.salary_disclosed &&
+      p.salary_min_k != null &&
+      p.salary_max_k != null
+    ) {
+      setSalarySet(true);
+      const lo = salaryMarks[nearestSalaryIndex(p.salary_min_k)];
+      const hi = salaryMarks[nearestSalaryIndex(p.salary_max_k)];
+      setSalaryRange([Math.min(lo, hi), Math.max(lo, hi)]);
+    } else {
+      setSalarySet(false);
+    }
+    setSelectedEmploymentTypes(p.employment_types ?? []);
+    setSelectedWorkArrangements(p.work_arrangements ?? []);
+    setLanguages(p.languages ?? []);
+    setVerificationEmail(p.verification_professional_email ?? "");
+    setLinkedInUrl(p.linkedin_url ?? "");
+    setExcludedFirms(p.excluded_firms ?? []);
+    setPreferredDestinations(p.preferred_destinations ?? []);
+    setSpecificFirmPreference(p.specific_firm_preference ?? "");
+  }, []);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    if (!localUser || localUser.account_type !== "candidate") return;
+    let cancelled = false;
+    setProfileLoadError(null);
+    fetchCandidateForUser(localUser.id)
+      .then((row) => {
+        if (cancelled || !row) return;
+        applyLoadedProfile(row);
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        const msg =
+          e instanceof CandidatesApiError ? e.message : "Could not load profile.";
+        setProfileLoadError(msg);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    applyLoadedProfile,
+    bootstrapError,
+    bootstrapLoading,
+    clerkLoaded,
+    localUser,
+  ]);
+
+  const validateStep = (s: number): boolean => {
+    if (s === 1) {
+      if (!practiceArea.trim()) {
+        toast.error("Select a practice area.");
+        return false;
+      }
+      if (!firmTier.trim()) {
+        toast.error("Select a firm tier.");
+        return false;
+      }
+      if (selectedEmploymentTypes.length === 0) {
+        toast.error("Select at least one employment type.");
+        return false;
+      }
+      if (selectedWorkArrangements.length === 0) {
+        toast.error("Select at least one work arrangement.");
+        return false;
+      }
+    }
+    if (s === 2) {
+      if (!university.trim()) {
+        toast.error("Select a university.");
+        return false;
+      }
+      if (selectedLocations.length === 0) {
+        toast.error("Select at least one preferred location.");
+        return false;
+      }
+    }
+    if (s === 4) {
+      const em = verificationEmail.trim();
+      if (em && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em)) {
+        toast.error("Enter a valid professional email or leave it blank.");
+        return false;
+      }
+      const li = linkedInUrl.trim();
+      if (li) {
+        try {
+          new URL(li);
+        } catch {
+          toast.error("Enter a valid LinkedIn URL or leave it blank.");
+          return false;
+        }
+      }
+    }
+    return true;
+  };
+
+  const goNext = () => {
+    if (!validateStep(step)) return;
+    setStep((prev) => Math.min(TOTAL_STEPS, prev + 1));
+  };
+
+  const submitProfile = async () => {
+    for (let s = 1; s <= 2; s++) {
+      if (!validateStep(s)) {
+        setStep(s);
+        return;
+      }
+    }
+    if (!validateStep(4)) {
+      setStep(4);
+      return;
+    }
+    if (!localUser?.id || localUser.account_type !== "candidate") {
+      toast.error("You need a lawyer account to save a profile.");
+      return;
+    }
+    const wizard = {
+      practiceArea,
+      pqeIsRange,
+      pqe,
+      pqeRange,
+      firmTier,
+      university,
+      selectedLocations,
+      notes,
+      salarySet,
+      salaryRange,
+      selectedEmploymentTypes,
+      selectedWorkArrangements,
+      languages,
+      verificationEmail,
+      linkedInUrl,
+      excludedFirms,
+      preferredDestinations,
+      specificFirmPreference,
+      openToRoles,
+    };
+    const body = wizardStateToCandidateBody(wizard, loadedRow);
+    setSubmitting(true);
+    try {
+      if (loadedRow) {
+        await updateCandidate(loadedRow.id, body);
+        toast.success("Profile updated.");
+      } else {
+        await createCandidate({ user_id: localUser.id, ...body });
+        toast.success("Profile saved.");
+      }
+      router.push("/search");
+    } catch (e: unknown) {
+      const msg =
+        e instanceof CandidatesApiError
+          ? e.message
+          : "Could not save profile. Is the API running?";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const toggleLocation = (loc: string) => {
     setSelectedLocations(prev =>
@@ -132,12 +342,42 @@ const ProfileBuilder = () => {
       </div>
 
       <div className="container max-w-6xl mx-auto px-6 py-12">
+        {bootstrapError && (
+          <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+            Could not reach the API to load your account. Start the backend and
+            check{" "}
+            <code className="rounded bg-muted px-1">NEXT_PUBLIC_API_URL</code>.
+          </p>
+        )}
+        {profileLoadError && (
+          <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+            {profileLoadError}
+          </p>
+        )}
+        {clerkLoaded &&
+          localUser &&
+          localUser.account_type !== "candidate" && (
+            <p className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100 mb-6">
+              This page is for lawyer profiles.{" "}
+              <Link href="/join" className="underline font-medium">
+                Choose lawyer
+              </Link>{" "}
+              on the join page, or use a different account.
+            </p>
+          )}
+
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
           {/* Form */}
           <div className="lg:col-span-3 space-y-8">
             <div>
               <h1 className="font-display text-3xl font-semibold text-foreground">Build your anonymous profile</h1>
               <p className="mt-2 text-muted-foreground">Your identity is never shown. Only structured data is visible to firms.</p>
+              {loadedRow && (
+                <p className="mt-2 text-xs text-muted-foreground">
+                  Editing your saved profile (updates the live record when you
+                  submit).
+                </p>
+              )}
             </div>
 
             {/* Step 1: Practice details */}
@@ -354,7 +594,7 @@ const ProfileBuilder = () => {
                     <Shield className="h-4 w-4 text-accent" />
                     Exclude Firms from Viewing Your Profile
                   </Label>
-                  <p className="text-sm text-muted-foreground">Select firms you don't want to see your anonymous profile — such as your current employer.</p>
+                  <p className="text-sm text-muted-foreground">Select firms you do not want to see your anonymous profile — such as your current employer.</p>
                   <Input
                     placeholder="Search firms..."
                     value={excludeSearch}
@@ -442,7 +682,7 @@ const ProfileBuilder = () => {
                     value={verificationEmail}
                     onChange={e => setVerificationEmail(e.target.value)}
                   />
-                  <p className="text-xs text-muted-foreground">We use this only for verification — it's never shared.</p>
+                  <p className="text-xs text-muted-foreground">We use this only for verification; it is never shared.</p>
                 </div>
 
                 <div className="flex items-center gap-3">
@@ -467,7 +707,7 @@ const ProfileBuilder = () => {
                 {!hasVerification && (
                   <div className="p-3 rounded-lg border border-border bg-muted/50">
                     <p className="text-sm text-muted-foreground">
-                      You can skip this step, but your profile won't receive the verified badge.
+                      You can skip this step, but your profile will not receive the verified badge.
                     </p>
                   </div>
                 )}
@@ -514,12 +754,25 @@ const ProfileBuilder = () => {
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               {step < TOTAL_STEPS ? (
-                <Button onClick={() => setStep(step + 1)}>
-                  {step === 4 && !hasVerification ? "Skip" : "Continue"} <ArrowRight className="ml-2 h-4 w-4" />
+                <Button onClick={goNext}>
+                  {step === 4 && !hasVerification ? "Skip" : "Continue"}{" "}
+                  <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               ) : (
-                <Button asChild>
-                  <Link href="/search">Submit Profile <ArrowRight className="ml-2 h-4 w-4" /></Link>
+                <Button
+                  disabled={
+                    submitting ||
+                    bootstrapLoading ||
+                    bootstrapError ||
+                    !localUser ||
+                    localUser.account_type !== "candidate"
+                  }
+                  onClick={() => void submitProfile()}
+                >
+                  {submitting ? "Saving…" : "Submit Profile"}{" "}
+                  {!submitting && (
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  )}
                 </Button>
               )}
             </div>
@@ -586,7 +839,7 @@ const ProfileBuilder = () => {
                 {notes && (
                   <div className="text-sm text-muted-foreground italic border-t border-border pt-3 flex items-start gap-2">
                     <StickyNote className="h-3.5 w-3.5 mt-0.5 shrink-0" />
-                    <span>"{notes}"</span>
+                    <span>&ldquo;{notes}&rdquo;</span>
                   </div>
                 )}
                 {(preferredDestinations.length > 0 || specificFirmPreference) && (

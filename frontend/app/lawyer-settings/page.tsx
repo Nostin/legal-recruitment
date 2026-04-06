@@ -1,13 +1,20 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
+import { useUser } from "@clerk/nextjs";
 import { Shield, Eye, EyeOff, Ban, Bell, Save } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Switch } from "@/app/components/ui/switch";
 import { Label } from "@/app/components/ui/label";
 import { toast } from "sonner";
+import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
+import {
+  fetchCandidateForUser,
+  updateCandidate,
+  CandidatesApiError,
+} from "@/lib/candidates-api";
 
 const allFirms = [
   "Allens", "Ashurst", "Baker McKenzie", "Clayton Utz", "Corrs Chambers Westgarth",
@@ -23,9 +30,55 @@ const fadeUp = {
 };
 
 const LawyerSettings = () => {
-  const [blockedFirms, setBlockedFirms] = useState<string[]>(["Herbert Smith Freehills"]);
+  const { isLoaded: clerkLoaded } = useUser();
+  const { localUser, bootstrapLoading, bootstrapError } = useOpenCourtUser();
+
+  const [blockedFirms, setBlockedFirms] = useState<string[]>([]);
   const [visibility, setVisibility] = useState<"anonymous" | "tier" | "firm">("anonymous");
   const [openToIntros, setOpenToIntros] = useState(true);
+  const [profileId, setProfileId] = useState<number | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [loadingProfile, setLoadingProfile] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    if (!localUser || localUser.account_type !== "candidate") {
+      setLoadingProfile(false);
+      return;
+    }
+    let cancelled = false;
+    setLoadError(null);
+    setLoadingProfile(true);
+    fetchCandidateForUser(localUser.id)
+      .then((row) => {
+        if (cancelled) return;
+        if (!row) {
+          setProfileId(null);
+          setBlockedFirms([]);
+          setOpenToIntros(true);
+          return;
+        }
+        setProfileId(row.id);
+        setBlockedFirms(row.excluded_firms ?? []);
+        setOpenToIntros(row.open_to_roles);
+      })
+      .catch((e: unknown) => {
+        if (!cancelled) {
+          setLoadError(
+            e instanceof CandidatesApiError
+              ? e.message
+              : "Could not load your profile.",
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingProfile(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
 
   const toggleBlock = (firm: string) => {
     setBlockedFirms(prev =>
@@ -33,8 +86,30 @@ const LawyerSettings = () => {
     );
   };
 
-  const handleSave = () => {
-    toast.success("Settings saved", { description: "Your visibility preferences have been updated." });
+  const handleSave = async () => {
+    if (!profileId) {
+      toast.error("Create your profile first in the profile builder.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateCandidate(profileId, {
+        excluded_firms: blockedFirms.length > 0 ? blockedFirms : null,
+        open_to_roles: openToIntros,
+      });
+      toast.success("Settings saved", {
+        description:
+          "Blocked firms and availability were updated. Visibility level is preview-only until the API supports it.",
+      });
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof CandidatesApiError
+          ? e.message
+          : "Could not save settings.",
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
@@ -50,12 +125,52 @@ const LawyerSettings = () => {
       </nav>
 
       <div className="container max-w-2xl mx-auto px-6 py-12">
+        {bootstrapError && (
+          <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+            Could not reach the API. Start the backend and check{" "}
+            <code className="rounded bg-muted px-1">NEXT_PUBLIC_API_URL</code>.
+          </p>
+        )}
+        {loadError && (
+          <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+            {loadError}
+          </p>
+        )}
+        {clerkLoaded &&
+          localUser &&
+          localUser.account_type !== "candidate" && (
+            <p className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100 mb-6">
+              These settings apply to lawyer accounts.{" "}
+              <Link href="/join" className="underline font-medium">
+                Join as a lawyer
+              </Link>{" "}
+              or switch accounts.
+            </p>
+          )}
+
         <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
           <h1 className="font-display text-3xl font-semibold text-foreground mb-1">Visibility Controls</h1>
           <p className="text-muted-foreground text-sm mb-10">
             Manage how your anonymous profile appears to hiring firms and control who can contact you.
           </p>
         </motion.div>
+
+        {loadingProfile && (
+          <p className="text-sm text-muted-foreground mb-6">Loading your profile…</p>
+        )}
+
+        {!loadingProfile &&
+          localUser?.account_type === "candidate" &&
+          !profileId &&
+          !loadError && (
+            <p className="rounded-lg border border-border bg-muted/50 px-4 py-3 text-sm text-muted-foreground mb-6">
+              You do not have a saved profile yet.{" "}
+              <Link href="/profile-builder" className="text-accent underline">
+                Complete the profile builder
+              </Link>{" "}
+              first; then you can manage blocks and availability here.
+            </p>
+          )}
 
         {/* Block Firms */}
         <motion.div
@@ -154,8 +269,20 @@ const LawyerSettings = () => {
           </div>
         </motion.div>
 
-        <Button size="lg" className="w-full" onClick={handleSave}>
-          <Save className="mr-2 h-4 w-4" /> Save Settings
+        <Button
+          size="lg"
+          className="w-full"
+          disabled={
+            saving ||
+            loadingProfile ||
+            bootstrapLoading ||
+            !profileId ||
+            localUser?.account_type !== "candidate"
+          }
+          onClick={() => void handleSave()}
+        >
+          <Save className="mr-2 h-4 w-4" />{" "}
+          {saving ? "Saving…" : "Save Settings"}
         </Button>
       </div>
     </div>

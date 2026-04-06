@@ -1,8 +1,9 @@
 "use client"
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { Briefcase, MapPin, GraduationCap, Search, Send, Building, Scale, ChevronLeft, ChevronRight, CreditCard, X, MessageSquare, BadgeCheck, StickyNote, Users, ArrowRight, Star, Mail, ChevronUp, Eye, EyeOff, DollarSign, FileText, Clock, Home, Globe, User, ChevronDown, Settings } from "lucide-react";
+import { useClerk, useUser } from "@clerk/nextjs";
+import { Briefcase, MapPin, GraduationCap, Search, Send, Building, Scale, ChevronLeft, ChevronRight, X, MessageSquare, BadgeCheck, StickyNote, Users, ArrowRight, Star, ChevronUp, User, ChevronDown, Settings, Globe, DollarSign, FileText, CreditCard, Clock, Home } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
@@ -12,32 +13,17 @@ import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
 import { toast } from "sonner";
-import { candidates } from "@/data/candidates";
+import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
+import {
+  listCandidates,
+  mapCandidateToSearchList,
+  type SearchListCandidate,
+  CandidatesApiError,
+} from "@/lib/candidates-api";
 
 const ITEMS_PER_PAGE = 12;
 
-interface Candidate {
-  id: number;
-  area: string;
-  title: string;
-  pqe: number;
-  tier: string;
-  currentFirm: string | null;
-  uni: string | null;
-  location: string;
-  primaryAdmission: string | null;
-  admissionYear: number | null;
-  formerFirms: string | null;
-  traineeFirm: string | null;
-  notes: string | null;
-  showCurrentFirm: boolean;
-  showUniversity: boolean;
-  showFormerFirms: boolean;
-  showTraineeFirm: boolean;
-  showAdmission: boolean;
-  verified: boolean;
-  preferredDestinations?: string[];
-}
+const signInSearch = `/sign-in?redirect_url=${encodeURIComponent("/search")}`;
 
 const practiceAreas = ["Corporate / M&A", "Litigation", "Banking & Finance", "Employment", "Real Estate", "Tax", "IP / Technology", "Regulatory", "Arbitration", "DCM"];
 const locationsList = ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Canberra"];
@@ -48,20 +34,58 @@ const introSalaryBands = [
 ];
 
 const TalentSearch = () => {
+  const { user, isLoaded: clerkLoaded } = useUser();
+  const { signOut } = useClerk();
+  const { localUser } = useOpenCourtUser();
+
   const [areaFilter, setAreaFilter] = useState("all");
   const [tierFilter, setTierFilter] = useState("all");
   const [locationFilter, setLocationFilter] = useState("all");
   const [page, setPage] = useState(1);
-  const [introModal, setIntroModal] = useState<Candidate | null>(null);
+  const [introModal, setIntroModal] = useState<SearchListCandidate | null>(null);
   const [introSent, setIntroSent] = useState(false);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [showJoinOverlay, setShowJoinOverlay] = useState(true);
   const [joinOverlayCollapsed, setJoinOverlayCollapsed] = useState(false);
 
-  // Login modal
-  const [showLoginModal, setShowLoginModal] = useState(false);
-  const [loginEmail, setLoginEmail] = useState("");
-  const [loginSent, setLoginSent] = useState(false);
+  const [candidates, setCandidates] = useState<SearchListCandidate[]>([]);
+  const [listLoading, setListLoading] = useState(true);
+  const [listError, setListError] = useState<string | null>(null);
+
+  const isFirm = localUser?.account_type === "firm";
+  const signedIn = Boolean(user);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const run = async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      setListLoading(true);
+      setListError(null);
+      try {
+        const rows = await listCandidates();
+        if (!cancelled) {
+          setCandidates(rows.map(mapCandidateToSearchList));
+        }
+      } catch (e: unknown) {
+        if (!cancelled) {
+          const msg =
+            e instanceof CandidatesApiError
+              ? e.message
+              : "Could not load candidates.";
+          setListError(msg);
+          setCandidates([]);
+        }
+      } finally {
+        if (!cancelled) setListLoading(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Intro request fields
   const [introMessage, setIntroMessage] = useState("");
@@ -79,22 +103,35 @@ const TalentSearch = () => {
   const [revealRoleDesc, setRevealRoleDesc] = useState(false);
   const [roleDescValue, setRoleDescValue] = useState("");
 
-  // My Account
-  const [openToRoles, setOpenToRoles] = useState(true);
-
-  const areas = useMemo(() => [...new Set(candidates.map(c => c.area))].sort(), []);
-  const tiers = useMemo(() => [...new Set(candidates.map(c => c.tier))].sort(), []);
-  const locations = useMemo(() => [...new Set(candidates.map(c => c.location))].sort(), []);
+  const areas = useMemo(
+    () => [...new Set(candidates.map((c) => c.area))].sort(),
+    [candidates],
+  );
+  const tiers = useMemo(
+    () => [...new Set(candidates.map((c) => c.tier))].sort(),
+    [candidates],
+  );
+  const locations = useMemo(() => {
+    const fromData = candidates.flatMap((c) => c.preferredLocations);
+    return [...new Set(fromData)].sort();
+  }, [candidates]);
 
   const filtered = useMemo(() => {
-    const result = candidates.filter(c => {
+    const result = candidates.filter((c) => {
+      if (!c.openToRoles) return false;
       if (areaFilter !== "all" && c.area !== areaFilter) return false;
       if (tierFilter !== "all" && c.tier !== tierFilter) return false;
-      if (locationFilter !== "all" && c.location !== locationFilter) return false;
+      if (
+        locationFilter !== "all" &&
+        !c.preferredLocations.includes(locationFilter)
+      )
+        return false;
       return true;
     });
-    return result.sort((a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0));
-  }, [areaFilter, tierFilter, locationFilter]);
+    return result.sort(
+      (a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0),
+    );
+  }, [areaFilter, tierFilter, locationFilter, candidates]);
 
   const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
   const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
@@ -104,7 +141,7 @@ const TalentSearch = () => {
     setPage(1);
   };
 
-  const openIntroModal = (c: Candidate) => {
+  const openIntroModal = (c: SearchListCandidate) => {
     setIntroModal(c);
     setIntroMessage("");
     setIntroTitle("");
@@ -126,19 +163,6 @@ const TalentSearch = () => {
     toast.success("Introduction request sent");
   };
 
-  const handleLogin = () => {
-    setLoginSent(true);
-  };
-
-  const handleSimulateLogin = () => {
-    setIsLoggedIn(true);
-    setShowLoginModal(false);
-    setLoginSent(false);
-    setLoginEmail("");
-    setShowJoinOverlay(false);
-    toast.success("Signed in successfully");
-  };
-
   const dismissOverlay = () => {
     setShowJoinOverlay(false);
     setJoinOverlayCollapsed(true);
@@ -152,42 +176,69 @@ const TalentSearch = () => {
         <div className="container max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
           <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Counsel</Link>
           <div className="flex items-center gap-3">
-            {isLoggedIn ? (
+            {signedIn && clerkLoaded ? (
               <>
-                <Button variant="ghost" size="sm" asChild><Link href="/firm-dashboard">Dashboard</Link></Button>
-                <Button variant="ghost" size="sm" asChild><Link href="/notifications">Notifications</Link></Button>
+                {isFirm && (
+                  <Button variant="ghost" size="sm" asChild>
+                    <Link href="/firm-dashboard">Dashboard</Link>
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/notifications">Notifications</Link>
+                </Button>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="outline" size="sm" className="gap-1.5">
-                      <User className="h-3.5 w-3.5" /> My Account <ChevronDown className="h-3 w-3" />
+                      <User className="h-3.5 w-3.5" /> Account{" "}
+                      <ChevronDown className="h-3 w-3" />
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end" className="w-64">
-                    <div className="flex items-center justify-between px-3 py-2">
-                      <div className="flex items-center gap-2">
-                        <Eye className="h-3.5 w-3.5 text-muted-foreground" />
-                        <span className="text-sm">Open to roles</span>
-                      </div>
-                      <Switch checked={openToRoles} onCheckedChange={(v) => { setOpenToRoles(v); toast(v ? "Now visible to firms" : "Hidden from searches"); }} />
-                    </div>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem asChild>
-                      <Link href="/lawyer-settings" className="flex items-center gap-2 cursor-pointer">
-                        <Settings className="h-3.5 w-3.5" /> Account Settings
-                      </Link>
-                    </DropdownMenuItem>
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem onClick={() => { setIsLoggedIn(false); toast("Signed out"); }} className="cursor-pointer">
-                      Sign Out
+                    {localUser?.account_type === "candidate" && (
+                      <>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href="/profile-builder"
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <Briefcase className="h-3.5 w-3.5" /> My profile
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem asChild>
+                          <Link
+                            href="/lawyer-settings"
+                            className="flex items-center gap-2 cursor-pointer"
+                          >
+                            <Settings className="h-3.5 w-3.5" /> Settings
+                          </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuSeparator />
+                      </>
+                    )}
+                    <DropdownMenuItem
+                      onClick={() =>
+                        void signOut({ redirectUrl: "/" }).catch(() =>
+                          toast.error("Could not sign out"),
+                        )
+                      }
+                      className="cursor-pointer"
+                    >
+                      Sign out
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
               </>
             ) : (
               <>
-                <Button variant="ghost" size="sm" asChild><Link href="/profile-builder">Join as Lawyer</Link></Button>
-                <Button variant="ghost" size="sm" asChild><Link href="/firm-onboarding">Join as Firm</Link></Button>
-                <Button size="sm" onClick={() => setShowLoginModal(true)}>Log In</Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/profile-builder">Join as Lawyer</Link>
+                </Button>
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href="/firm-onboarding">Join as Firm</Link>
+                </Button>
+                <Button size="sm" asChild>
+                  <Link href={signInSearch}>Log In</Link>
+                </Button>
               </>
             )}
           </div>
@@ -227,12 +278,27 @@ const TalentSearch = () => {
               {locations.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
-          <span className="ml-auto text-sm text-muted-foreground">{filtered.length} candidates</span>
+          <span className="ml-auto text-sm text-muted-foreground">
+            {listLoading ? "…" : `${filtered.length} candidates`}
+          </span>
         </div>
+
+        {listError && (
+          <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+            {listError} Check that the API is running and{" "}
+            <code className="rounded bg-muted px-1">NEXT_PUBLIC_API_URL</code> is
+            correct.
+          </p>
+        )}
+
+        {listLoading && (
+          <p className="text-sm text-muted-foreground mb-6">Loading profiles…</p>
+        )}
 
         {/* Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {paginated.map((c, i) => (
+          {!listLoading &&
+            paginated.map((c, i) => (
             <motion.div
               key={c.id}
               className="rounded-xl border border-border bg-card p-5 hover:shadow-lg transition-shadow duration-300 flex flex-col justify-between"
@@ -252,7 +318,7 @@ const TalentSearch = () => {
                         <BadgeCheck className="h-4 w-4 text-accent shrink-0" />
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground">{c.title} · {c.pqe} Years PQE</p>
+                    <p className="text-xs text-muted-foreground">{c.title} · {c.pqeLabel} Years PQE</p>
                   </div>
                 </div>
                 <div className="space-y-1.5 text-xs text-muted-foreground mb-4">
@@ -265,7 +331,7 @@ const TalentSearch = () => {
                   {c.showUniversity && c.uni && (
                     <div className="flex items-center gap-2"><GraduationCap className="h-3.5 w-3.5 shrink-0" />{c.uni}</div>
                   )}
-                  <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 shrink-0" />{c.location}</div>
+                  <div className="flex items-center gap-2"><MapPin className="h-3.5 w-3.5 shrink-0" />{c.locationLabel}</div>
                   {c.showAdmission && c.primaryAdmission && (
                     <div className="flex items-center gap-2"><Scale className="h-3.5 w-3.5 shrink-0" />Admitted in {c.primaryAdmission}{c.admissionYear ? ` (${c.admissionYear})` : ''}</div>
                   )}
@@ -279,13 +345,13 @@ const TalentSearch = () => {
                 {c.notes && (
                   <div className="text-xs text-muted-foreground italic mb-3 flex items-start gap-1.5">
                     <StickyNote className="h-3 w-3 mt-0.5 shrink-0" />
-                    <span>"{c.notes}"</span>
+                    <span>&ldquo;{c.notes}&rdquo;</span>
                   </div>
                 )}
-                {(c as any).preferredDestinations && (c as any).preferredDestinations.length > 0 && (
+                {c.preferredDestinations.length > 0 && (
                   <div className="flex items-center gap-1.5 flex-wrap mb-3">
                     <Star className="h-3 w-3 text-accent shrink-0" />
-                    {(c as any).preferredDestinations.map((dest: string) => (
+                    {c.preferredDestinations.map((dest) => (
                       <Badge key={dest} variant="outline" className="text-[10px] border-accent/30 text-accent">
                         {dest}
                       </Badge>
@@ -300,21 +366,37 @@ const TalentSearch = () => {
               <Button
                 size="sm"
                 className="w-full mt-2"
-                onClick={() => openIntroModal(c as Candidate)}
-                disabled={!isLoggedIn}
-                title={!isLoggedIn ? "Sign in as a firm to request introductions" : undefined}
+                onClick={() => openIntroModal(c)}
+                disabled={!isFirm}
+                title={
+                  !signedIn
+                    ? "Sign in to request introductions"
+                    : !isFirm
+                      ? "Firm accounts can request introductions"
+                      : undefined
+                }
               >
                 <Send className="mr-2 h-3.5 w-3.5" /> Request Introduction
               </Button>
-              {!isLoggedIn && (
-                <p className="text-[11px] text-muted-foreground text-center mt-1.5">Sign in as a firm to request introductions</p>
+              {signedIn && !isFirm && (
+                <p className="text-[11px] text-muted-foreground text-center mt-1.5">
+                  Switch to a hiring firm account to send introduction requests.
+                </p>
+              )}
+              {!signedIn && (
+                <p className="text-[11px] text-muted-foreground text-center mt-1.5">
+                  <Link href={signInSearch} className="text-accent underline">
+                    Sign in
+                  </Link>{" "}
+                  as a firm to request introductions.
+                </p>
               )}
             </motion.div>
           ))}
         </div>
 
         {/* Pagination */}
-        {totalPages > 1 && (
+        {!listLoading && totalPages > 1 && (
           <div className="flex items-center justify-center gap-2 mt-8">
             <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
               <ChevronLeft className="h-4 w-4 mr-1" /> Previous
@@ -335,7 +417,7 @@ const TalentSearch = () => {
 
       {/* Collapsed join bar */}
       <AnimatePresence>
-        {!isLoggedIn && joinOverlayCollapsed && !showJoinOverlay && (
+        {!signedIn && joinOverlayCollapsed && !showJoinOverlay && (
           <motion.button
             className="fixed bottom-0 right-6 z-40 flex items-center gap-2 px-4 py-2 rounded-t-xl border border-b-0 border-border bg-card shadow-lg text-sm font-medium text-foreground hover:bg-muted transition-colors"
             initial={{ opacity: 0, y: 20 }}
@@ -352,7 +434,7 @@ const TalentSearch = () => {
 
       {/* Join Overlay for non-logged-in users */}
       <AnimatePresence>
-        {!isLoggedIn && showJoinOverlay && (
+        {!signedIn && showJoinOverlay && (
           <motion.div
             className="fixed bottom-6 right-6 z-40 w-80 rounded-2xl border border-border bg-card shadow-2xl p-6"
             initial={{ opacity: 0, y: 40, scale: 0.95 }}
@@ -393,76 +475,14 @@ const TalentSearch = () => {
               </Link>
             </div>
             <div className="mt-3 pt-3 border-t border-border">
-              <button
-                onClick={() => setShowLoginModal(true)}
-                className="text-xs text-accent hover:underline w-full text-center"
+              <Link
+                href={signInSearch}
+                className="text-xs text-accent hover:underline w-full text-center block"
               >
                 Already have an account? Log in
-              </button>
+              </Link>
             </div>
             <p className="text-[11px] text-muted-foreground mt-2 text-center">128 active lawyers this week</p>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Login Modal */}
-      <AnimatePresence>
-        {showLoginModal && (
-          <motion.div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/40 backdrop-blur-sm px-4"
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            onClick={() => { setShowLoginModal(false); setLoginSent(false); setLoginEmail(""); }}
-          >
-            <motion.div
-              className="w-full max-w-sm rounded-2xl bg-card border border-border p-8 shadow-2xl"
-              initial={{ scale: 0.95, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.95, opacity: 0 }}
-              onClick={e => e.stopPropagation()}
-            >
-              {!loginSent ? (
-                <>
-                  <div className="flex items-center gap-2 mb-2">
-                    <Mail className="h-5 w-5 text-accent" />
-                    <h2 className="font-display text-xl font-semibold text-foreground">Log In</h2>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    Enter your email and we'll send you a magic link to sign in.
-                  </p>
-                  <div className="space-y-4">
-                    <div className="space-y-2">
-                      <Label>Email Address</Label>
-                      <Input
-                        type="email"
-                        placeholder="you@example.com"
-                        value={loginEmail}
-                        onChange={e => setLoginEmail(e.target.value)}
-                      />
-                    </div>
-                    <Button className="w-full" onClick={handleLogin} disabled={!loginEmail.trim()}>
-                      <Mail className="mr-2 h-4 w-4" /> Send Magic Link
-                    </Button>
-                  </div>
-                </>
-              ) : (
-                <div className="text-center">
-                  <div className="h-16 w-16 rounded-full bg-accent-muted flex items-center justify-center mx-auto mb-4">
-                    <Mail className="h-8 w-8 text-accent" />
-                  </div>
-                  <h2 className="font-display text-xl font-semibold text-foreground mb-2">Check Your Email</h2>
-                  <p className="text-sm text-muted-foreground mb-6">
-                    We've sent a magic link to <span className="font-medium text-foreground">{loginEmail}</span>. Click it to sign in.
-                  </p>
-                  <Button variant="outline" className="w-full mb-2" onClick={() => { setLoginSent(false); setLoginEmail(""); }}>
-                    Try a different email
-                  </Button>
-                  <button
-                    onClick={handleSimulateLogin}
-                    className="text-xs text-accent hover:underline"
-                  >
-                    Simulate sign-in (demo)
-                  </button>
-                </div>
-              )}
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -489,7 +509,7 @@ const TalentSearch = () => {
                       <p className="text-sm font-medium text-foreground">{introModal.area} Lawyer</p>
                       {introModal.verified && <BadgeCheck className="h-3.5 w-3.5 text-accent" />}
                     </div>
-                    <p className="text-xs text-muted-foreground">{introModal.pqe} PQE · {introModal.tier} Background · {introModal.location}</p>
+                    <p className="text-xs text-muted-foreground">{introModal.pqeLabel} PQE · {introModal.tier} Background · {introModal.locationLabel}</p>
                   </div>
 
                   {/* Required fields */}

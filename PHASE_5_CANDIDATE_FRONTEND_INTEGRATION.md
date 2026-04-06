@@ -35,6 +35,8 @@ Save shared components in:
 ./frontend/app/components
 ```
 
+---
+
 ## Out of Scope
 
 Do not implement:
@@ -84,12 +86,29 @@ By the end of this phase, the candidate UI must use real backend data rather tha
 9. run verification
 10. fix issues and verify
 
+## Frontend Preflight
+
+Before making changes, verify and report:
+
+- pwd in ./frontend
+- frontend dev server can run
+- backend API is reachable from the frontend environment
+- the frontend API base URL currently being used
+- candidate endpoints respond from the running backend
+- Clerk auth still works after Phase 4
+
 ## Constraints
 - keep code simple
 - do not redesign UI
 - do not rewrite unrelated frontend code
 - extract only obvious shared pieces
 - do not begin firm integration yet
+- use a single explicit frontend API base URL configuration
+- do not hardcode multiple backend ports or mixed localhost / 127.0.0.1 values across files
+- when displaying candidate data, prefer structured fields over parsing or reconstructing values from profile_summary
+- only integrate the candidate-related screens that already exist in the current prototype
+- do not invent new pages or flows
+- do not modify firm onboarding, firm search, or firm-specific UI except where a minimal shared API/helper change is required
 
 ## Verification Requirements
 
@@ -102,6 +121,7 @@ You must run and report:
 - candidate detail loads from database
 - candidate create persists to database
 - candidate edit persists to database
+- verify in the database that candidate create and candidate edit operations persisted expected field changes
 
 ### Validation/error handling
 
@@ -110,8 +130,9 @@ You must run and report:
 
 ### Frontend quality
 
-- frontend lint passes
+- modified frontend files lint clean
 - frontend build/typecheck passes where configured
+- report any pre-existing unrelated lint issues separately rather than fixing unrelated files
 
 ### Completion Requirements
 
