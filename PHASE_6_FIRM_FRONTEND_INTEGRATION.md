@@ -75,13 +75,31 @@ You may extract only obvious shared pieces if duplication is clear and reused in
 
 ---
 
-## Constraints
+## Frontend Preflight
 
+Before making changes, verify and report:
+
+- pwd in ./frontend
+- frontend dev server can run
+- backend API is reachable from the frontend environment
+- the frontend API base URL currently being used
+- firm endpoints respond from the running backend
+- Clerk auth still works after Phase 4
+
+## Constraints
 - keep code simple
 - do not redesign UI
 - do not rewrite unrelated frontend code
-- do not begin intro request work
+- extract only obvious shared pieces
 - do not begin advanced search/filter backend work in this phase
+- use a single explicit frontend API base URL configuration
+- do not hardcode multiple backend ports or mixed localhost / 127.0.0.1 values across files
+- when displaying firm data, prefer structured fields over parsing or reconstructing values
+- only integrate the firm-related screens that already exist in the current prototype
+- do not invent new pages or flows
+- do not modify firm onboarding, candidate search, or candidate-specific UI except where a minimal shared API/helper change is required
+- do not modify Clerk auth, LocalUserProvider, or user bootstrap logic except where a minimal shared firm-flow fix is strictly required
+- do not flatten important structured firm fields into generic text fields or ad hoc summary strings
 
 ---
 
@@ -94,14 +112,20 @@ You must run and report:
 - firm onboarding create flow persists to database
 - firm profile retrieval works where applicable
 - firm update/edit flow persists to database where applicable
+- verify in the database that firm create and firm edit operations persisted expected field changes
+- if a signed-in firm user already has a firm profile, the existing data is loaded correctly into the onboarding/profile flow
+- if a signed-in firm user does not yet have a firm profile, the create flow creates one correctly
 
 ### Validation/error handling
+
 - validation errors display sensibly
 - API/network errors are handled sensibly
 
 ### Frontend quality
-- frontend lint passes
+
+- modified frontend files lint clean
 - frontend build/typecheck passes where configured
+- report any pre-existing unrelated lint issues separately rather than fixing unrelated files
 
 ---
 

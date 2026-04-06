@@ -1,13 +1,25 @@
 "use client"
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useUser } from "@clerk/nextjs";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, MapPin, Briefcase, Users, CreditCard, ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { MapPin, Briefcase, Users, CreditCard, ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/app/components/ui/button";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { Badge } from "@/app/components/ui/badge";
+import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
+import {
+  createFirm,
+  updateFirm,
+  fetchFirmForUser,
+  FirmsApiError,
+  type FirmRead,
+  type HiringPartnersBand,
+} from "@/lib/firms-api";
 
 const practiceAreas = [
   "Banking & Finance", "Corporate / M&A", "Litigation", "Real Estate",
@@ -19,19 +31,129 @@ const locations = [
 ];
 
 const FirmOnboarding = () => {
+  const router = useRouter();
+  const { isLoaded: clerkLoaded } = useUser();
+  const { localUser, bootstrapLoading, bootstrapError } = useOpenCourtUser();
+
   const [step, setStep] = useState(1);
   const [firmName, setFirmName] = useState("");
   const [selectedLocations, setSelectedLocations] = useState<string[]>([]);
   const [selectedAreas, setSelectedAreas] = useState<string[]>([]);
-  const [hiringPartners, setHiringPartners] = useState("1-3");
+  const [hiringPartners, setHiringPartners] = useState<HiringPartnersBand>("1-3");
+
+  const [loadedRow, setLoadedRow] = useState<FirmRead | null>(null);
+  const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+
+  const applyLoaded = useCallback((row: FirmRead) => {
+    setLoadedRow(row);
+    setFirmName(row.firm_name);
+    setSelectedLocations(row.office_locations ?? []);
+    setSelectedAreas(row.hiring_practice_areas ?? []);
+    const band = row.hiring_partners_band;
+    if (band === "1-3" || band === "4-10" || band === "11+") {
+      setHiringPartners(band);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    if (!localUser || localUser.account_type !== "firm") {
+      setProfileLoading(false);
+      return;
+    }
+    let cancelled = false;
+
+    const run = async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      setProfileLoading(true);
+      setProfileLoadError(null);
+      try {
+        const row = await fetchFirmForUser(localUser.id);
+        if (!cancelled && row) applyLoaded(row);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setProfileLoadError(
+            e instanceof FirmsApiError ? e.message : "Could not load firm profile.",
+          );
+        }
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    };
+
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [applyLoaded, bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
 
   const toggleItem = (item: string, list: string[], setter: (v: string[]) => void) => {
     setter(list.includes(item) ? list.filter(l => l !== item) : [...list, item]);
   };
 
+  const validateStep1 = () => {
+    if (!firmName.trim()) {
+      toast.error("Enter your firm name.");
+      return false;
+    }
+    if (selectedLocations.length === 0) {
+      toast.error("Select at least one office location.");
+      return false;
+    }
+    if (selectedAreas.length === 0) {
+      toast.error("Select at least one practice area you are hiring in.");
+      return false;
+    }
+    return true;
+  };
+
+  const goNext = () => {
+    if (step === 1 && !validateStep1()) return;
+    setStep(s => Math.min(3, s + 1));
+  };
+
   const canContinue = step === 1
     ? firmName.trim().length > 0 && selectedLocations.length > 0 && selectedAreas.length > 0
     : true;
+
+  const submitFirm = async () => {
+    if (!validateStep1()) {
+      setStep(1);
+      return;
+    }
+    if (!localUser?.id || localUser.account_type !== "firm") {
+      toast.error("Sign in with a hiring firm account to continue.");
+      return;
+    }
+    const body = {
+      firm_name: firmName.trim(),
+      office_locations: selectedLocations.length > 0 ? selectedLocations : null,
+      hiring_practice_areas: selectedAreas.length > 0 ? selectedAreas : null,
+      hiring_partners_band: hiringPartners,
+    };
+    setSubmitting(true);
+    try {
+      if (loadedRow) {
+        await updateFirm(loadedRow.id, body);
+        toast.success("Firm profile updated.");
+      } else {
+        await createFirm({ user_id: localUser.id, ...body });
+        toast.success("Firm profile created.");
+      }
+      router.push("/firm-dashboard");
+    } catch (e: unknown) {
+      const msg =
+        e instanceof FirmsApiError
+          ? e.message
+          : "Could not save firm profile. Is the API running?";
+      toast.error(msg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -43,6 +165,34 @@ const FirmOnboarding = () => {
       </nav>
 
       <div className="container max-w-2xl mx-auto px-6 py-12">
+        {bootstrapError && (
+          <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+            Could not reach the API to load your account. Start the backend and check{" "}
+            <code className="rounded bg-muted px-1">NEXT_PUBLIC_API_URL</code>.
+          </p>
+        )}
+        {profileLoadError && (
+          <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
+            {profileLoadError}
+          </p>
+        )}
+        {clerkLoaded && localUser && localUser.account_type !== "firm" && (
+          <p className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100 mb-6">
+            This onboarding is for hiring firms.{" "}
+            <Link href="/join" className="underline font-medium">Choose firm access</Link> on the join page, or switch accounts.
+          </p>
+        )}
+
+        {profileLoading && (
+          <p className="text-sm text-muted-foreground mb-6">Loading your firm profile…</p>
+        )}
+
+        {loadedRow && !profileLoading && (
+          <p className="text-xs text-muted-foreground mb-4">
+            You already have a saved firm profile. Update the details below and save to apply changes.
+          </p>
+        )}
+
         {/* Progress */}
         <div className="mb-8">
           <div className="flex items-center justify-between mb-3">
@@ -124,7 +274,7 @@ const FirmOnboarding = () => {
                   <Label className="text-sm font-medium text-foreground mb-2 block">
                     <Users className="inline h-4 w-4 mr-1" />How many hiring partners will use the platform?
                   </Label>
-                  <Select value={hiringPartners} onValueChange={setHiringPartners}>
+                  <Select value={hiringPartners} onValueChange={(v) => setHiringPartners(v as HiringPartnersBand)}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       <SelectItem value="1-3">1–3 partners</SelectItem>
@@ -137,7 +287,7 @@ const FirmOnboarding = () => {
                 <div className="rounded-xl border border-border bg-muted/30 p-5">
                   <p className="text-sm text-foreground font-medium mb-2">Multi-seat access</p>
                   <p className="text-sm text-muted-foreground">
-                    Each hiring partner receives their own dashboard with shared introduction credits. 
+                    Each hiring partner receives their own dashboard with shared introduction credits.
                     All team activity is logged for compliance and audit purposes.
                   </p>
                 </div>
@@ -176,18 +326,22 @@ const FirmOnboarding = () => {
                   ))}
                 </ul>
 
-                <div className="rounded-xl bg-muted/50 border border-border p-4 mb-6">
-                  <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Firm</span>
-                    <span className="font-medium text-foreground">{firmName || "—"}</span>
+                <div className="rounded-xl bg-muted/50 border border-border p-4 mb-6 space-y-2 text-sm">
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground shrink-0">Firm</span>
+                    <span className="font-medium text-foreground text-right">{firmName.trim() || "—"}</span>
                   </div>
-                  <div className="flex justify-between text-sm mt-2">
-                    <span className="text-muted-foreground">Locations</span>
-                    <span className="font-medium text-foreground">{selectedLocations.join(", ") || "—"}</span>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground shrink-0">Locations</span>
+                    <span className="font-medium text-foreground text-right">{selectedLocations.length ? selectedLocations.join(", ") : "—"}</span>
                   </div>
-                  <div className="flex justify-between text-sm mt-2">
-                    <span className="text-muted-foreground">Hiring partners</span>
-                    <span className="font-medium text-foreground">{hiringPartners}</span>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground shrink-0">Practice areas</span>
+                    <span className="font-medium text-foreground text-right">{selectedAreas.length ? selectedAreas.join(", ") : "—"}</span>
+                  </div>
+                  <div className="flex justify-between gap-4">
+                    <span className="text-muted-foreground shrink-0">Hiring partners</span>
+                    <span className="font-medium text-foreground text-right">{hiringPartners}</span>
                   </div>
                 </div>
               </div>
@@ -205,14 +359,22 @@ const FirmOnboarding = () => {
             <ArrowLeft className="mr-2 h-4 w-4" /> Back
           </Button>
           {step < 3 ? (
-            <Button onClick={() => setStep(s => s + 1)} disabled={!canContinue}>
+            <Button onClick={goNext} disabled={!canContinue}>
               Continue <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
           ) : (
-            <Button asChild>
-              <Link href="/firm-dashboard">
-                Activate Firm Access <ArrowRight className="ml-2 h-4 w-4" />
-              </Link>
+            <Button
+              disabled={
+                submitting ||
+                bootstrapLoading ||
+                bootstrapError ||
+                !localUser ||
+                localUser.account_type !== "firm"
+              }
+              onClick={() => void submitFirm()}
+            >
+              {submitting ? "Saving…" : loadedRow ? "Save firm profile" : "Activate Firm Access"}
+              {!submitting && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
           )}
         </div>

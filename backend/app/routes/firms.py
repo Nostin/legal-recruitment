@@ -8,6 +8,19 @@ from app.schemas.firm import FirmCreate, FirmRead, FirmUpdate
 router = APIRouter()
 
 
+@router.get("/by-user/{user_id}", response_model=FirmRead)
+def get_firm_by_user(user_id: int, db: Session = Depends(get_db)) -> FirmProfile:
+    row = (
+        db.query(FirmProfile).filter(FirmProfile.user_id == user_id).first()
+    )
+    if row is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Firm profile not found",
+        )
+    return row
+
+
 @router.get("/{firm_id}", response_model=FirmRead)
 def get_firm(firm_id: int, db: Session = Depends(get_db)) -> FirmProfile:
     row = db.get(FirmProfile, firm_id)

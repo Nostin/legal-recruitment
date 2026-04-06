@@ -3,8 +3,6 @@ import Link from "next/link";
 import {
   ClerkProvider,
   Show,
-  SignInButton,
-  SignUpButton,
   UserButton,
 } from "@clerk/nextjs";
 import { Toaster } from "sonner";
@@ -37,29 +35,21 @@ export default function RootLayout({
             >
               Home
             </Link>
-            <div className="flex items-center gap-3">
-              <Show when="signed-out">
-                <SignInButton>
-                  <button
-                    type="button"
-                    className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-100 dark:hover:bg-zinc-900"
-                  >
-                    Sign in
-                  </button>
-                </SignInButton>
-                <SignUpButton>
-                  <button
-                    type="button"
-                    className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
-                  >
-                    Sign up
-                  </button>
-                </SignUpButton>
-              </Show>
-              <Show when="signed-in">
-                <UserButton />
-              </Show>
-            </div>
+            <Show when="signed-out">
+              <Link
+                href="/sign-in"
+                className="rounded-full border border-zinc-300 px-4 py-2 text-sm font-medium text-zinc-900 transition-colors hover:bg-zinc-50 dark:border-zinc-600 dark:text-zinc-100 dark:hover:bg-zinc-900"
+              >
+                Sign in
+              </Link>
+
+              <Link
+                href="/sign-up"
+                className="rounded-full bg-zinc-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
+              >
+                Sign up
+              </Link>
+            </Show>
           </header>
           <LocalUserProvider>{children}</LocalUserProvider>
           <Toaster richColors position="top-center" />
