@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -28,12 +28,49 @@ def _validate_pqe_payload(
 
 
 @router.get("", response_model=list[CandidateRead])
-def list_candidates(db: Session = Depends(get_db)) -> list[CandidateProfile]:
-    return (
-        db.query(CandidateProfile)
-        .order_by(CandidateProfile.id.asc())
-        .all()
-    )
+def list_candidates(
+    db: Session = Depends(get_db),
+    practice_area: str | None = Query(
+        None,
+        description="Exact match on candidate_profiles.practice_area",
+    ),
+    firm_tier: str | None = Query(
+        None,
+        description="Exact match on candidate_profiles.firm_tier",
+    ),
+    location: str | None = Query(
+        None,
+        description="Candidate must list this city in preferred_locations",
+    ),
+    open_to_roles_only: bool = Query(
+        False,
+        description="When true, only candidates open to roles",
+    ),
+    sort_verified_first: bool = Query(
+        False,
+        description="When true, verified profiles first, then by id",
+    ),
+) -> list[CandidateProfile]:
+    q = db.query(CandidateProfile)
+    if open_to_roles_only:
+        q = q.filter(CandidateProfile.open_to_roles.is_(True))
+    pa = (practice_area or "").strip()
+    if pa:
+        q = q.filter(CandidateProfile.practice_area == pa)
+    ft = (firm_tier or "").strip()
+    if ft:
+        q = q.filter(CandidateProfile.firm_tier == ft)
+    loc = (location or "").strip()
+    if loc:
+        q = q.filter(CandidateProfile.preferred_locations.contains([loc]))
+    if sort_verified_first:
+        q = q.order_by(
+            CandidateProfile.profile_verified.desc(),
+            CandidateProfile.id.asc(),
+        )
+    else:
+        q = q.order_by(CandidateProfile.id.asc())
+    return q.all()
 
 
 @router.get("/{candidate_id}", response_model=CandidateRead)

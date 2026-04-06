@@ -110,8 +110,35 @@ async function parseJson<T>(res: Response): Promise<T> {
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-export async function listCandidates(): Promise<CandidateRead[]> {
-  const res = await fetch(base(), { method: "GET" });
+/** Optional GET /candidates query (explicit params; no generic DSL). */
+export type ListCandidatesQuery = {
+  practiceArea?: string;
+  firmTier?: string;
+  location?: string;
+  openToRolesOnly?: boolean;
+  sortVerifiedFirst?: boolean;
+};
+
+function buildListCandidatesQueryString(q: ListCandidatesQuery): string {
+  const p = new URLSearchParams();
+  const pa = q.practiceArea?.trim();
+  if (pa) p.set("practice_area", pa);
+  const ft = q.firmTier?.trim();
+  if (ft) p.set("firm_tier", ft);
+  const loc = q.location?.trim();
+  if (loc) p.set("location", loc);
+  if (q.openToRolesOnly) p.set("open_to_roles_only", "true");
+  if (q.sortVerifiedFirst) p.set("sort_verified_first", "true");
+  const s = p.toString();
+  return s ? `?${s}` : "";
+}
+
+/** List candidates. Pass no argument for an unfiltered list (e.g. resolve user profile). */
+export async function listCandidates(
+  query?: ListCandidatesQuery,
+): Promise<CandidateRead[]> {
+  const suffix = query ? buildListCandidatesQueryString(query) : "";
+  const res = await fetch(`${base()}${suffix}`, { method: "GET" });
   return parseJson<CandidateRead[]>(res);
 }
 

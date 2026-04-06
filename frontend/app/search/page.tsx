@@ -1,5 +1,5 @@
 "use client"
-import { useState, useMemo, useEffect } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useClerk, useUser } from "@clerk/nextjs";
@@ -26,6 +26,7 @@ const ITEMS_PER_PAGE = 12;
 const signInSearch = `/sign-in?redirect_url=${encodeURIComponent("/search")}`;
 
 const practiceAreas = ["Corporate / M&A", "Litigation", "Banking & Finance", "Employment", "Real Estate", "Tax", "IP / Technology", "Regulatory", "Arbitration", "DCM"];
+const firmTiers = ["Top Tier", "Mid Tier", "Boutique"];
 const locationsList = ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Canberra"];
 
 const introSalaryBands = [
@@ -63,7 +64,13 @@ const TalentSearch = () => {
       setListLoading(true);
       setListError(null);
       try {
-        const rows = await listCandidates();
+        const rows = await listCandidates({
+          openToRolesOnly: true,
+          sortVerifiedFirst: true,
+          practiceArea: areaFilter !== "all" ? areaFilter : undefined,
+          firmTier: tierFilter !== "all" ? tierFilter : undefined,
+          location: locationFilter !== "all" ? locationFilter : undefined,
+        });
         if (!cancelled) {
           setCandidates(rows.map(mapCandidateToSearchList));
         }
@@ -85,7 +92,7 @@ const TalentSearch = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [areaFilter, tierFilter, locationFilter]);
 
   // Intro request fields
   const [introMessage, setIntroMessage] = useState("");
@@ -103,38 +110,8 @@ const TalentSearch = () => {
   const [revealRoleDesc, setRevealRoleDesc] = useState(false);
   const [roleDescValue, setRoleDescValue] = useState("");
 
-  const areas = useMemo(
-    () => [...new Set(candidates.map((c) => c.area))].sort(),
-    [candidates],
-  );
-  const tiers = useMemo(
-    () => [...new Set(candidates.map((c) => c.tier))].sort(),
-    [candidates],
-  );
-  const locations = useMemo(() => {
-    const fromData = candidates.flatMap((c) => c.preferredLocations);
-    return [...new Set(fromData)].sort();
-  }, [candidates]);
-
-  const filtered = useMemo(() => {
-    const result = candidates.filter((c) => {
-      if (!c.openToRoles) return false;
-      if (areaFilter !== "all" && c.area !== areaFilter) return false;
-      if (tierFilter !== "all" && c.tier !== tierFilter) return false;
-      if (
-        locationFilter !== "all" &&
-        !c.preferredLocations.includes(locationFilter)
-      )
-        return false;
-      return true;
-    });
-    return result.sort(
-      (a, b) => (b.verified ? 1 : 0) - (a.verified ? 1 : 0),
-    );
-  }, [areaFilter, tierFilter, locationFilter, candidates]);
-
-  const totalPages = Math.ceil(filtered.length / ITEMS_PER_PAGE);
-  const paginated = filtered.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
+  const totalPages = Math.ceil(candidates.length / ITEMS_PER_PAGE);
+  const paginated = candidates.slice((page - 1) * ITEMS_PER_PAGE, page * ITEMS_PER_PAGE);
 
   const handleFilterChange = (setter: (v: string) => void) => (value: string) => {
     setter(value);
@@ -251,7 +228,11 @@ const TalentSearch = () => {
             <h1 className="font-display text-3xl font-semibold text-foreground">Find Talent</h1>
             <p className="text-muted-foreground mt-1">Browse anonymous lawyer profiles and request introductions.</p>
           </div>
-          <Badge variant="secondary" className="text-xs">128 active lawyers this week</Badge>
+          <Badge variant="secondary" className="text-xs">
+            {listLoading
+              ? "Loading…"
+              : `${candidates.length} open to approaches`}
+          </Badge>
         </div>
 
         {/* Filters */}
@@ -261,25 +242,25 @@ const TalentSearch = () => {
             <SelectTrigger className="w-[180px]"><SelectValue placeholder="Practice Area" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Practice Areas</SelectItem>
-              {areas.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
+              {practiceAreas.map(a => <SelectItem key={a} value={a}>{a}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={tierFilter} onValueChange={handleFilterChange(setTierFilter)}>
             <SelectTrigger className="w-[160px]"><SelectValue placeholder="Firm Tier" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Tiers</SelectItem>
-              {tiers.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+              {firmTiers.map(t => <SelectItem key={t} value={t}>{t}</SelectItem>)}
             </SelectContent>
           </Select>
           <Select value={locationFilter} onValueChange={handleFilterChange(setLocationFilter)}>
             <SelectTrigger className="w-[160px]"><SelectValue placeholder="Location" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Locations</SelectItem>
-              {locations.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
+              {locationsList.map(l => <SelectItem key={l} value={l}>{l}</SelectItem>)}
             </SelectContent>
           </Select>
           <span className="ml-auto text-sm text-muted-foreground">
-            {listLoading ? "…" : `${filtered.length} candidates`}
+            {listLoading ? "…" : `${candidates.length} candidates`}
           </span>
         </div>
 
@@ -482,7 +463,9 @@ const TalentSearch = () => {
                 Already have an account? Log in
               </Link>
             </div>
-            <p className="text-[11px] text-muted-foreground mt-2 text-center">128 active lawyers this week</p>
+            <p className="text-[11px] text-muted-foreground mt-2 text-center">
+              Browse live profiles from the OpenCourt database.
+            </p>
           </motion.div>
         )}
       </AnimatePresence>

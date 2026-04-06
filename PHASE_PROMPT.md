@@ -1,4 +1,4 @@
-Read ARCHITECTURE.md and PHASE_7_SEARCH_FILTER_AND_BROWSE.md.
+Read ARCHITECTURE.md and PHASE_8_INTRO_REQUESTS.md.
 
 Do not begin large refactors. Only change what is required to satisfy the phase instructions.
 

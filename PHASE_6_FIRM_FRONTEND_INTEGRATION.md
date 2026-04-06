@@ -84,7 +84,7 @@ Before making changes, verify and report:
 - backend API is reachable from the frontend environment
 - the frontend API base URL currently being used
 - firm endpoints respond from the running backend
-- Clerk auth still works after Phase 4
+- Clerk auth still works after Phase 4 and 5
 
 ## Constraints
 - keep code simple
