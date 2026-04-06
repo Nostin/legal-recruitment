@@ -15,6 +15,6 @@ class UserRead(BaseModel):
     id: int
     clerk_user_id: str
     email: str
-    account_type: AccountTypeEnum
+    account_type: AccountTypeEnum | None
     created_at: datetime
     updated_at: datetime

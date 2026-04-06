@@ -19,9 +19,9 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     clerk_user_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     email: Mapped[str] = mapped_column(String(320), nullable=False)
-    account_type: Mapped[AccountType] = mapped_column(
+    account_type: Mapped[AccountType | None] = mapped_column(
         Enum(AccountType, name="account_type", native_enum=False, length=32),
-        nullable=False,
+        nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False

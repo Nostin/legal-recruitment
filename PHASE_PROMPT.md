@@ -1,4 +1,4 @@
-Read ARCHITECTURE.md and PHASE_****.md.
+Read ARCHITECTURE.md and PHASE_5_CANDIDATE_FRONTEND_INTEGRATION.md.
 
 Do not begin large refactors. Only change what is required to satisfy the phase instructions.
 
