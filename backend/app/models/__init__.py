@@ -1,7 +1,7 @@
 import enum
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import Boolean, DateTime, Enum, ForeignKey, Integer, String, Text, UniqueConstraint, func, text
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -168,3 +168,61 @@ class FirmProfile(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="firm_profile")
+
+
+class IntroductionStatus(str, enum.Enum):
+    pending = "pending"
+    accepted = "accepted"
+    declined = "declined"
+
+
+class IntroductionRequest(Base):
+    __tablename__ = "introduction_requests"
+    __table_args__ = (
+        UniqueConstraint(
+            "firm_profile_id",
+            "candidate_profile_id",
+            name="uq_intro_firm_candidate",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    firm_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("firm_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    candidate_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[IntroductionStatus] = mapped_column(
+        Enum(IntroductionStatus, name="introduction_status", native_enum=False, length=16),
+        nullable=False,
+        server_default=text("'pending'"),
+        default=IntroductionStatus.pending,
+    )
+    role_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    role_location: Mapped[str] = mapped_column(String(128), nullable=False)
+    practice_area: Mapped[str] = mapped_column(String(128), nullable=False)
+    employment_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    work_arrangement: Mapped[str] = mapped_column(String(64), nullable=False)
+    sponsorship_qualification: Mapped[str] = mapped_column(String(128), nullable=False)
+    salary_band: Mapped[str] = mapped_column(String(64), nullable=False)
+    firm_message: Mapped[str] = mapped_column(Text, nullable=False)
+    revealed_firm_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    revealed_compensation: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    revealed_role_description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    firm_profile: Mapped["FirmProfile"] = relationship()
+    candidate_profile: Mapped["CandidateProfile"] = relationship()

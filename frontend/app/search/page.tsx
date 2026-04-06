@@ -20,6 +20,10 @@ import {
   type SearchListCandidate,
   CandidatesApiError,
 } from "@/lib/candidates-api";
+import {
+  createIntroductionRequest,
+  IntroductionApiError,
+} from "@/lib/introduction-requests-api";
 
 const ITEMS_PER_PAGE = 12;
 
@@ -135,9 +139,38 @@ const TalentSearch = () => {
     setIntroSent(false);
   };
 
-  const sendIntro = () => {
-    setIntroSent(true);
-    toast.success("Introduction request sent");
+  const sendIntro = async () => {
+    if (!introModal || !localUser?.id) {
+      toast.error("Sign in as a firm to send introduction requests.");
+      return;
+    }
+    try {
+      await createIntroductionRequest({
+        firm_user_id: localUser.id,
+        candidate_profile_id: introModal.id,
+        role_title: introTitle.trim(),
+        role_location: introLocation,
+        practice_area: introPracticeArea,
+        employment_type: introEmploymentType,
+        work_arrangement: introWorkArrangement,
+        sponsorship_qualification: introSponsorship,
+        salary_band: introSalaryBand,
+        firm_message: introMessage.trim(),
+        revealed_firm_name: firmNameValue.trim() || undefined,
+        revealed_compensation: compRangeValue.trim() || undefined,
+        revealed_role_description: revealRoleDesc
+          ? roleDescValue.trim() || undefined
+          : undefined,
+      });
+      setIntroSent(true);
+      toast.success("Introduction request sent");
+    } catch (e: unknown) {
+      const msg =
+        e instanceof IntroductionApiError
+          ? e.message
+          : "Could not send introduction request. Is the API running?";
+      toast.error(msg);
+    }
   };
 
   const dismissOverlay = () => {
@@ -656,7 +689,11 @@ const TalentSearch = () => {
                   </div>
 
                   <div className="flex gap-3">
-                    <Button className="flex-1" onClick={sendIntro} disabled={!canSendIntro}>
+                    <Button
+                      className="flex-1"
+                      onClick={() => void sendIntro()}
+                      disabled={!canSendIntro}
+                    >
                       <Send className="mr-2 h-4 w-4" /> Send Request
                     </Button>
                     <Button variant="outline" onClick={() => setIntroModal(null)}>Cancel</Button>
