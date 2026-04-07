@@ -3,9 +3,20 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
+import { toast } from "sonner";
 import { Search, Building2, Briefcase, MapPin, Users, Pencil } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
+import { Input } from "@/app/components/ui/input";
+import { Textarea } from "@/app/components/ui/textarea";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
 import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
 import {
   fetchFirmForUser,
@@ -22,6 +33,12 @@ import {
   JobInterestsApiError,
   type JobInterestFirmRead,
 } from "@/lib/job-interests-api";
+import {
+  listIntroductionsForFirm,
+  createIntroductionRequest,
+  IntroductionApiError,
+  type IntroductionRead,
+} from "@/lib/introduction-requests-api";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -38,6 +55,11 @@ const FirmDashboard = () => {
   const [firm, setFirm] = useState<FirmRead | null>(null);
   const [savedCandidates, setSavedCandidates] = useState<SavedCandidateRead[]>([]);
   const [jobApplications, setJobApplications] = useState<JobInterestFirmRead[]>([]);
+  const [firmIntroductions, setFirmIntroductions] = useState<IntroductionRead[]>([]);
+  const [introTargetCandidateId, setIntroTargetCandidateId] = useState<number | null>(null);
+  const [introRoleTitle, setIntroRoleTitle] = useState("Confidential Opportunity");
+  const [introMessage, setIntroMessage] = useState("");
+  const [sendingIntro, setSendingIntro] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -69,6 +91,34 @@ const FirmDashboard = () => {
       }
     };
 
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    if (!localUser || localUser.account_type !== "firm") {
+      setFirmIntroductions([]);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const rows = await listIntroductionsForFirm(localUser.id);
+        if (!cancelled) setFirmIntroductions(rows);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setFirmIntroductions([]);
+          setLoadError(
+            e instanceof IntroductionApiError
+              ? e.message
+              : "Could not load introduction requests.",
+          );
+        }
+      }
+    };
     void run();
     return () => {
       cancelled = true;
@@ -132,6 +182,49 @@ const FirmDashboard = () => {
   }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
 
   const isFirm = localUser?.account_type === "firm";
+  const introStatusByCandidateId = new Map<number, IntroductionRead["status"]>(
+    firmIntroductions.map((row) => [row.candidate_profile_id, row.status]),
+  );
+  const applicationsByJob = new Map<number, JobInterestFirmRead[]>();
+  for (const row of jobApplications) {
+    const prev = applicationsByJob.get(row.job_id) ?? [];
+    prev.push(row);
+    applicationsByJob.set(row.job_id, prev);
+  }
+  const introTarget = savedCandidates.find((s) => s.candidate_profile_id === introTargetCandidateId) ?? null;
+
+  async function sendIntroFromSavedCandidate() {
+    if (!localUser?.id || !introTargetCandidateId) return;
+    setSendingIntro(true);
+    try {
+      await createIntroductionRequest({
+        firm_user_id: localUser.id,
+        candidate_profile_id: introTargetCandidateId,
+        role_title: introRoleTitle.trim() || "Confidential Opportunity",
+        role_location: "Sydney",
+        practice_area: introTarget?.practice_area ?? "Corporate / M&A",
+        employment_type: "Full Time",
+        work_arrangement: "Hybrid",
+        sponsorship_qualification: "Australian Qualified Only",
+        salary_band: "Undisclosed",
+        firm_message: introMessage.trim() || "We would like to connect about a relevant role.",
+      });
+      toast.success("Introduction request sent");
+      setIntroTargetCandidateId(null);
+      setIntroMessage("");
+      setIntroRoleTitle("Confidential Opportunity");
+      if (localUser.account_type === "firm") {
+        const rows = await listIntroductionsForFirm(localUser.id);
+        setFirmIntroductions(rows);
+      }
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof IntroductionApiError ? e.message : "Could not send introduction request.",
+      );
+    } finally {
+      setSendingIntro(false);
+    }
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -265,6 +358,26 @@ const FirmDashboard = () => {
                       {" · "}
                       {s.firm_tier ?? "—"}
                     </p>
+                    <p className="mt-1 text-xs text-muted-foreground">
+                      Status: {introStatusByCandidateId.get(s.candidate_profile_id) === "accepted"
+                        ? "connected"
+                        : introStatusByCandidateId.get(s.candidate_profile_id) === "pending"
+                          ? "request sent"
+                          : "saved"}
+                    </p>
+                    <Button
+                      size="sm"
+                      className="mt-2 cursor-pointer"
+                      variant={introStatusByCandidateId.get(s.candidate_profile_id) === "pending" ? "outline" : "default"}
+                      disabled={introStatusByCandidateId.get(s.candidate_profile_id) === "pending" || introStatusByCandidateId.get(s.candidate_profile_id) === "accepted"}
+                      onClick={() => setIntroTargetCandidateId(s.candidate_profile_id)}
+                    >
+                      {introStatusByCandidateId.get(s.candidate_profile_id) === "accepted"
+                        ? "Connected"
+                        : introStatusByCandidateId.get(s.candidate_profile_id) === "pending"
+                          ? "Request sent"
+                          : "Request introduction"}
+                    </Button>
                   </div>
                 ))}
               </div>
@@ -285,16 +398,37 @@ const FirmDashboard = () => {
               </p>
             ) : (
               <div className="space-y-2">
-                {jobApplications.slice(0, 6).map((a) => (
-                  <div key={a.id} className="rounded-lg border border-border p-3">
+                {Array.from(applicationsByJob.entries()).slice(0, 6).map(([jobId, rows]) => (
+                  <Link key={jobId} href={`/firm-job-applications/${jobId}`} className="block rounded-lg border border-border p-3 hover:bg-muted/40">
                     <p className="text-sm font-medium text-foreground">
-                      {a.job_role_title}
+                      {rows[0].job_role_title}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {a.candidate_practice_area ?? "Lawyer"} ·{" "}
-                      {a.candidate_pqe_is_range
-                        ? `${a.candidate_pqe_range_min ?? "?"}-${a.candidate_pqe_range_max ?? "?"} PQE`
-                        : `${a.candidate_years_post_qualification ?? "?"} PQE`}
+                      {rows.length} applicant{rows.length === 1 ? "" : "s"} · {rows[0].job_location}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </motion.div>
+
+          <motion.div
+            className="rounded-xl border border-border bg-card p-6 lg:col-span-1"
+            initial="hidden"
+            animate="visible"
+            variants={fadeUp}
+            custom={3}
+          >
+            <h3 className="font-display text-base font-semibold text-foreground mb-2">Introduction Requests</h3>
+            {firmIntroductions.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No introduction requests yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {firmIntroductions.slice(0, 6).map((row) => (
+                  <div key={row.id} className="rounded-lg border border-border p-3">
+                    <p className="text-sm font-medium text-foreground">{row.role_title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {row.practice_area} · status: {row.status}
                     </p>
                   </div>
                 ))}
@@ -303,6 +437,37 @@ const FirmDashboard = () => {
           </motion.div>
         </div>
       </div>
+      <Dialog open={introTargetCandidateId !== null} onOpenChange={(open) => !open && setIntroTargetCandidateId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Request introduction</DialogTitle>
+            <DialogDescription>
+              Send an introduction request directly for this saved candidate.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              value={introRoleTitle}
+              onChange={(e) => setIntroRoleTitle(e.target.value)}
+              placeholder="Role title"
+            />
+            <Textarea
+              value={introMessage}
+              onChange={(e) => setIntroMessage(e.target.value)}
+              placeholder="Short message to candidate"
+              className="min-h-[90px]"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIntroTargetCandidateId(null)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void sendIntroFromSavedCandidate()} disabled={sendingIntro}>
+              {sendingIntro ? "Sending..." : "Send request"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

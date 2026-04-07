@@ -317,7 +317,7 @@ const LawyerSettings = () => {
 
         <Button
           size="lg"
-          className="w-full"
+          className="w-full cursor-pointer"
           disabled={
             saving ||
             loadingProfile ||

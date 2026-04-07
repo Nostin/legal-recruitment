@@ -85,6 +85,31 @@ export async function listOpenJobs(): Promise<JobRead[]> {
   return parseJson<JobRead[]>(res);
 }
 
+export async function listOpenJobsFiltered(filters: {
+  location?: string;
+  practiceArea?: string;
+  salaryMinK?: number;
+  salaryMaxK?: number;
+}): Promise<JobRead[]> {
+  const u = new URL(base());
+  u.searchParams.set("status", "open");
+  if (filters.location) u.searchParams.set("location", filters.location);
+  if (filters.practiceArea) u.searchParams.set("practice_area", filters.practiceArea);
+  if (typeof filters.salaryMinK === "number") {
+    u.searchParams.set("salary_min_k", String(filters.salaryMinK));
+  }
+  if (typeof filters.salaryMaxK === "number") {
+    u.searchParams.set("salary_max_k", String(filters.salaryMaxK));
+  }
+  const res = await fetch(u.toString(), { method: "GET" });
+  return parseJson<JobRead[]>(res);
+}
+
+export async function getJob(jobId: number): Promise<JobRead> {
+  const res = await fetch(`${base()}/${jobId}`, { method: "GET" });
+  return parseJson<JobRead>(res);
+}
+
 export async function createJob(body: JobCreateBody): Promise<JobRead> {
   const res = await fetch(base(), {
     method: "POST",

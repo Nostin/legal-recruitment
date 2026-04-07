@@ -58,6 +58,7 @@ export function AppHeader() {
                     toast.error("Could not sign out"),
                   )
                 }
+                className="cursor-pointer"
               >
                 Sign out
               </Button>
@@ -76,7 +77,7 @@ export function AppHeader() {
               </Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="outline" size="sm" className="gap-1.5">
+                  <Button variant="outline" size="sm" className="gap-1.5 cursor-pointer">
                     Account
                     <ChevronDown className="h-3.5 w-3.5 opacity-70" />
                   </Button>

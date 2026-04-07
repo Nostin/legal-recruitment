@@ -39,6 +39,10 @@ def list_jobs(
     db: Session = Depends(get_db),
     status_filter: JobStatus | None = Query(None, alias="status"),
     firm_user_id: int | None = Query(None),
+    location: str | None = Query(None),
+    practice_area: str | None = Query(None),
+    salary_min_k: int | None = Query(None, ge=0),
+    salary_max_k: int | None = Query(None, ge=0),
 ) -> list[Job]:
     q = db.query(Job)
     if status_filter is not None:
@@ -46,6 +50,14 @@ def list_jobs(
     if firm_user_id is not None:
         firm = _firm_profile_for_user(db, firm_user_id)
         q = q.filter(Job.firm_profile_id == firm.id)
+    if location:
+        q = q.filter(Job.location == location.strip())
+    if practice_area:
+        q = q.filter(Job.practice_area == practice_area.strip())
+    if salary_min_k is not None:
+        q = q.filter(Job.salary_max_k.is_not(None), Job.salary_max_k >= salary_min_k)
+    if salary_max_k is not None:
+        q = q.filter(Job.salary_min_k.is_not(None), Job.salary_min_k <= salary_max_k)
     return q.order_by(Job.created_at.desc()).all()
 
 

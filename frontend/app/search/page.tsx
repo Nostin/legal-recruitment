@@ -11,6 +11,7 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
+import { Slider } from "@/app/components/ui/slider";
 import { toast } from "sonner";
 import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
 import {
@@ -39,10 +40,8 @@ const practiceAreas = ["Corporate / M&A", "Litigation", "Banking & Finance", "Em
 const firmTiers = ["Top Tier", "Mid Tier", "Boutique"];
 const locationsList = ["Sydney", "Melbourne", "Brisbane", "Perth", "Adelaide", "Canberra"];
 
-const introSalaryBands = [
-  "Under $100k", "$100k – $150k", "$150k – $200k", "$200k – $250k",
-  "$250k – $300k", "$300k – $400k", "$400k – $500k", "$500k+",
-];
+const salaryMarks = [0, 100, 150, 200, 250, 300, 400, 500, 750, 1000];
+const formatSalary = (v: number) => (v >= 1000 ? "$1m+" : `$${v}k`);
 
 const TalentSearch = () => {
   const { user } = useUser();
@@ -154,7 +153,7 @@ const TalentSearch = () => {
   const [introEmploymentType, setIntroEmploymentType] = useState("");
   const [introWorkArrangement, setIntroWorkArrangement] = useState("");
   const [introSponsorship, setIntroSponsorship] = useState("");
-  const [introSalaryBand, setIntroSalaryBand] = useState("");
+  const [introSalaryRange, setIntroSalaryRange] = useState<[number, number]>([150, 250]);
 
   // Optional reveal values (empty or "Don't share" = not shared)
   const [firmNameValue, setFirmNameValue] = useState("");
@@ -178,7 +177,7 @@ const TalentSearch = () => {
     setIntroEmploymentType("");
     setIntroWorkArrangement("");
     setIntroSponsorship("");
-    setIntroSalaryBand("");
+    setIntroSalaryRange([150, 250]);
     setFirmNameValue("");
     setRevealRoleDesc(false);
     setRoleDescValue("");
@@ -229,7 +228,7 @@ const TalentSearch = () => {
         employment_type: introEmploymentType,
         work_arrangement: introWorkArrangement,
         sponsorship_qualification: introSponsorship,
-        salary_band: introSalaryBand,
+        salary_band: `${formatSalary(introSalaryRange[0])} - ${formatSalary(introSalaryRange[1])}`,
         firm_message: introMessage.trim(),
         revealed_firm_name: firmNameValue.trim() || undefined,
         revealed_role_description: revealRoleDesc
@@ -266,7 +265,7 @@ const TalentSearch = () => {
     Boolean(introEmploymentType) &&
     Boolean(introWorkArrangement) &&
     Boolean(introSponsorship) &&
-    Boolean(introSalaryBand);
+    Boolean(introSalaryRange[0] <= introSalaryRange[1]);
 
   return (
     <div className="min-h-screen bg-background">
@@ -394,7 +393,7 @@ const TalentSearch = () => {
               </div>
               <Button
                 size="sm"
-                className="w-full mt-2"
+                className="w-full mt-2 cursor-pointer"
                 onClick={() => openIntroModal(c)}
                 disabled={
                   !isFirm || sentCandidateProfileIds.has(c.id)
@@ -420,12 +419,12 @@ const TalentSearch = () => {
               {isFirm && (
                 <Button
                   size="sm"
-                  variant="outline"
-                  className="w-full mt-2"
+                  variant={savedCandidateProfileIds.has(c.id) ? "default" : "outline"}
+                  className="w-full mt-2 cursor-pointer"
                   onClick={() => void toggleSavedCandidate(c.id)}
                 >
                   <Bookmark className="mr-2 h-3.5 w-3.5" />
-                  {savedCandidateProfileIds.has(c.id) ? "Saved" : "Save Candidate"}
+                  {savedCandidateProfileIds.has(c.id) ? "Saved Candidate" : "Save Candidate"}
                 </Button>
               )}
               {signedIn && !isFirm && (
@@ -653,14 +652,24 @@ const TalentSearch = () => {
                       <div className="space-y-2">
                         <Label className="flex items-center gap-1.5">
                           <DollarSign className="h-3.5 w-3.5" />
-                          Salary Band <span className="text-destructive">*</span>
+                          Compensation range <span className="text-destructive">*</span>
                         </Label>
-                        <Select value={introSalaryBand} onValueChange={setIntroSalaryBand}>
-                          <SelectTrigger><SelectValue placeholder="Select band" /></SelectTrigger>
-                          <SelectContent>
-                            {introSalaryBands.map(sb => <SelectItem key={sb} value={sb}>{sb}</SelectItem>)}
-                          </SelectContent>
-                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          {formatSalary(introSalaryRange[0])} - {formatSalary(introSalaryRange[1])}
+                        </p>
+                        <Slider
+                          value={[
+                            salaryMarks.indexOf(introSalaryRange[0]),
+                            salaryMarks.indexOf(introSalaryRange[1]),
+                          ]}
+                          min={0}
+                          max={salaryMarks.length - 1}
+                          step={1}
+                          minStepsBetweenThumbs={1}
+                          onValueChange={(vals: number[]) => {
+                            setIntroSalaryRange([salaryMarks[vals[0]], salaryMarks[vals[1]]]);
+                          }}
+                        />
                       </div>
                     </div>
 

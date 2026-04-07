@@ -407,6 +407,7 @@ export default function FirmOpportunitiesPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="cursor-pointer"
                       onClick={() => {
                         setEditingJobId(job.id);
                         setForm(formFromJob(job));
@@ -418,6 +419,7 @@ export default function FirmOpportunitiesPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="cursor-pointer"
                       onClick={() => {
                         setCloseTargetJobId(job.id);
                         setCloseReason(job.close_reason ?? "");
@@ -429,6 +431,7 @@ export default function FirmOpportunitiesPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      className="cursor-pointer"
                       onClick={() => void reopenJob(job.id)}
                       disabled={job.status !== "closed" || submitting}
                     >
@@ -437,6 +440,7 @@ export default function FirmOpportunitiesPage() {
                     <Button
                       size="sm"
                       variant="destructive"
+                      className="cursor-pointer"
                       onClick={() => setRemoveTargetJobId(job.id)}
                       disabled={job.status === "removed" || submitting}
                     >
@@ -465,6 +469,7 @@ export default function FirmOpportunitiesPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
+              className="cursor-pointer"
               onClick={() => {
                 if (removeTargetJobId) void removeJob(removeTargetJobId);
                 setRemoveTargetJobId(null);
@@ -495,6 +500,7 @@ export default function FirmOpportunitiesPage() {
               Cancel
             </Button>
             <Button
+              className="cursor-pointer"
               onClick={() => {
                 if (!closeTargetJobId) return;
                 void closeJob(closeTargetJobId, closeReason.trim());

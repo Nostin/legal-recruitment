@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
 import { Badge } from "@/app/components/ui/badge";
 import { Button } from "@/app/components/ui/button";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -21,11 +22,15 @@ import {
   JobInterestsApiError,
   listJobInterestsForCandidate,
 } from "@/lib/job-interests-api";
-import { JobRead, JobsApiError, listOpenJobs } from "@/lib/jobs-api";
+import { JobRead, JobsApiError, listOpenJobs, listOpenJobsFiltered } from "@/lib/jobs-api";
 
 function pqeLabel(): string {
   return "Open to relevant candidates";
 }
+
+const salaryOptions = [0, 100, 150, 200, 250, 300, 400, 500, 750, 1000];
+const salarySelectValue = (v: number | null) => (v == null ? "any" : String(v));
+const salaryLabel = (v: number) => (v >= 1000 ? "$1m+" : `$${v}k`);
 
 export default function CandidateOpportunitiesPage() {
   const { isLoaded: clerkLoaded } = useUser();
@@ -37,6 +42,12 @@ export default function CandidateOpportunitiesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [interestModalJob, setInterestModalJob] = useState<JobRead | null>(null);
   const [submittingInterest, setSubmittingInterest] = useState(false);
+  const [locationFilter, setLocationFilter] = useState("all");
+  const [practiceAreaFilter, setPracticeAreaFilter] = useState("all");
+  const [salaryMinFilter, setSalaryMinFilter] = useState<number | null>(null);
+  const [salaryMaxFilter, setSalaryMaxFilter] = useState<number | null>(null);
+  const [locationOptions, setLocationOptions] = useState<string[]>([]);
+  const [practiceAreaOptions, setPracticeAreaOptions] = useState<string[]>([]);
 
   const isCandidate = localUser?.account_type === "candidate";
 
@@ -67,6 +78,69 @@ export default function CandidateOpportunitiesPage() {
       cancelled = true;
     };
   }, [bootstrapError, bootstrapLoading, clerkLoaded]);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const rows = await listOpenJobs();
+        if (cancelled) return;
+        const locations = Array.from(new Set(rows.map((j) => j.location))).sort();
+        const areas = Array.from(new Set(rows.map((j) => j.practice_area))).sort();
+        setLocationOptions(locations);
+        setPracticeAreaOptions(areas);
+      } catch {
+        if (!cancelled) {
+          setLocationOptions([]);
+          setPracticeAreaOptions([]);
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapError, bootstrapLoading, clerkLoaded]);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    let cancelled = false;
+    const run = async () => {
+      setLoading(true);
+      setLoadError(null);
+      try {
+        const rows = await listOpenJobsFiltered({
+          location: locationFilter !== "all" ? locationFilter : undefined,
+          practiceArea: practiceAreaFilter !== "all" ? practiceAreaFilter : undefined,
+          salaryMinK: salaryMinFilter ?? undefined,
+          salaryMaxK: salaryMaxFilter ?? undefined,
+        });
+        if (!cancelled) setJobs(rows);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setLoadError(
+            e instanceof JobsApiError ? e.message : "Could not load opportunities.",
+          );
+          setJobs([]);
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    bootstrapError,
+    bootstrapLoading,
+    clerkLoaded,
+    locationFilter,
+    practiceAreaFilter,
+    salaryMinFilter,
+    salaryMaxFilter,
+  ]);
 
   useEffect(() => {
     if (!localUser?.id || localUser.account_type !== "candidate") {
@@ -140,6 +214,81 @@ export default function CandidateOpportunitiesPage() {
           </p>
         )}
 
+        <div className="mt-6 grid gap-3 rounded-xl border border-border bg-card p-4 md:grid-cols-3">
+          <Select value={locationFilter} onValueChange={setLocationFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Location" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Locations</SelectItem>
+              {locationOptions.map((loc) => (
+                <SelectItem key={loc} value={loc}>
+                  {loc}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={practiceAreaFilter} onValueChange={setPracticeAreaFilter}>
+            <SelectTrigger>
+              <SelectValue placeholder="Practice Area" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Practice Areas</SelectItem>
+              {practiceAreaOptions.map((area) => (
+                <SelectItem key={area} value={area}>
+                  {area}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="grid grid-cols-2 gap-2">
+            <Select
+              value={salarySelectValue(salaryMinFilter)}
+              onValueChange={(value) => {
+                const nextMin = value === "any" ? null : Number(value);
+                setSalaryMinFilter(nextMin);
+                if (nextMin != null && salaryMaxFilter != null && nextMin > salaryMaxFilter) {
+                  setSalaryMaxFilter(nextMin);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Min salary" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Min salary: Any</SelectItem>
+                {salaryOptions.map((v) => (
+                  <SelectItem key={`min-${v}`} value={String(v)}>
+                    Min {salaryLabel(v)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
+              value={salarySelectValue(salaryMaxFilter)}
+              onValueChange={(value) => {
+                const nextMax = value === "any" ? null : Number(value);
+                setSalaryMaxFilter(nextMax);
+                if (nextMax != null && salaryMinFilter != null && nextMax < salaryMinFilter) {
+                  setSalaryMinFilter(nextMax);
+                }
+              }}
+            >
+              <SelectTrigger>
+                <SelectValue placeholder="Max salary" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Max salary: Any</SelectItem>
+                {salaryOptions.map((v) => (
+                  <SelectItem key={`max-${v}`} value={String(v)}>
+                    Max {salaryLabel(v)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
         {loading ? (
           <p className="mt-8 text-sm text-muted-foreground">Loading opportunities…</p>
         ) : sortedJobs.length === 0 ? (
@@ -161,7 +310,7 @@ export default function CandidateOpportunitiesPage() {
                 </div>
                 <p className="mt-3 text-sm text-muted-foreground line-clamp-3">{job.description}</p>
                 <Button
-                  className="mt-4 w-full"
+                  className="mt-4 w-full cursor-pointer"
                   onClick={() => setInterestModalJob(job)}
                   disabled={!isCandidate || interestJobIds.has(job.id)}
                 >
