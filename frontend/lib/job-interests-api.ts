@@ -9,6 +9,22 @@ export type JobInterestRead = {
   created_at: string;
 };
 
+export type JobInterestFirmRead = {
+  id: number;
+  job_id: number;
+  candidate_profile_id: number;
+  created_at: string;
+  job_role_title: string;
+  job_location: string;
+  job_practice_area: string;
+  candidate_practice_area: string | null;
+  candidate_years_post_qualification: number | null;
+  candidate_pqe_is_range: boolean;
+  candidate_pqe_range_min: number | null;
+  candidate_pqe_range_max: number | null;
+  candidate_firm_tier: string | null;
+};
+
 export class JobInterestsApiError extends Error {
   constructor(
     message: string,
@@ -56,4 +72,11 @@ export async function createJobInterest(body: {
     body: JSON.stringify(body),
   });
   return parseJson<JobInterestRead>(res);
+}
+
+export async function listJobInterestsForFirm(
+  firmUserId: number,
+): Promise<JobInterestFirmRead[]> {
+  const res = await fetch(`${base()}/for-firm/${firmUserId}`, { method: "GET" });
+  return parseJson<JobInterestFirmRead[]>(res);
 }

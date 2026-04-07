@@ -34,6 +34,11 @@ import {
   IntroductionApiError,
   type IntroductionRead,
 } from "@/lib/introduction-requests-api";
+import {
+  listJobInterestsForFirm,
+  JobInterestsApiError,
+  type JobInterestFirmRead,
+} from "@/lib/job-interests-api";
 
 function formatIntroDate(iso: string): string {
   return new Date(iso).toLocaleDateString("en-AU", {
@@ -48,6 +53,7 @@ const Notifications = () => {
   const { localUser, bootstrapLoading, bootstrapError } = useOpenCourtUser();
 
   const [intros, setIntros] = useState<IntroductionRead[]>([]);
+  const [firmApplications, setFirmApplications] = useState<JobInterestFirmRead[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [showModal, setShowModal] = useState<number | null>(null);
@@ -98,6 +104,34 @@ const Notifications = () => {
       cancelled = true;
     };
   }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser, loadIntros]);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    if (!localUser?.id || localUser.account_type !== "firm") {
+      setFirmApplications([]);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const rows = await listJobInterestsForFirm(localUser.id);
+        if (!cancelled) setFirmApplications(rows);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setLoadError(
+            e instanceof JobInterestsApiError
+              ? e.message
+              : "Could not load job applications.",
+          );
+          setFirmApplications([]);
+        }
+      }
+    };
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
 
   const currentNotification = intros.find((n) => n.id === showModal);
 
@@ -166,6 +200,7 @@ const Notifications = () => {
   };
 
   const isCandidate = localUser?.account_type === "candidate";
+  const isFirm = localUser?.account_type === "firm";
 
   return (
     <div className="min-h-screen bg-background">
@@ -181,7 +216,7 @@ const Notifications = () => {
             {loadError}
           </p>
         )}
-        {clerkLoaded && localUser && !isCandidate && (
+        {clerkLoaded && localUser && !isCandidate && !isFirm && (
           <p className="rounded-lg border border-amber-500/50 bg-amber-500/10 px-4 py-3 text-sm text-amber-950 dark:text-amber-100 mb-6">
             Introduction requests are shown to lawyer accounts.{" "}
             <Link href="/join" className="underline font-medium">Join as a lawyer</Link> or switch accounts.
@@ -193,16 +228,45 @@ const Notifications = () => {
             <Bell className="h-5 w-5 text-accent" />
           </div>
           <div>
-            <h1 className="font-display text-2xl font-semibold text-foreground">Introduction Requests</h1>
+            <h1 className="font-display text-2xl font-semibold text-foreground">
+              {isFirm ? "Job Applications" : "Introduction Requests"}
+            </h1>
             <p className="text-sm text-muted-foreground">
               {loading
                 ? "Loading…"
                 : isCandidate
                   ? `${intros.length} request${intros.length === 1 ? "" : "s"} in your inbox`
+                  : isFirm
+                    ? `${firmApplications.length} job application${firmApplications.length === 1 ? "" : "s"} received`
                   : "Sign in as a lawyer to view requests."}
             </p>
           </div>
         </div>
+
+        {!loading && isFirm && (
+          <div className="space-y-4 mb-8">
+            {firmApplications.length === 0 ? (
+              <p className="text-sm text-muted-foreground rounded-xl border border-border bg-card p-6">
+                No job applications yet.
+              </p>
+            ) : (
+              firmApplications.map((a) => (
+                <div key={a.id} className="rounded-xl border border-border bg-card p-6">
+                  <p className="text-sm font-semibold text-foreground">{a.job_role_title}</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    {a.job_practice_area} · {a.job_location}
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Candidate: {a.candidate_practice_area ?? "Lawyer"} ·{" "}
+                    {a.candidate_pqe_is_range
+                      ? `${a.candidate_pqe_range_min ?? "?"}-${a.candidate_pqe_range_max ?? "?"} PQE`
+                      : `${a.candidate_years_post_qualification ?? "?"} PQE`}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+        )}
 
         {!loading && isCandidate && intros.length === 0 && !loadError && (
           <p className="text-sm text-muted-foreground rounded-xl border border-border bg-card p-6">

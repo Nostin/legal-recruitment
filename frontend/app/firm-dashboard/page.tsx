@@ -17,6 +17,11 @@ import {
   SavedCandidatesApiError,
   type SavedCandidateRead,
 } from "@/lib/saved-candidates-api";
+import {
+  listJobInterestsForFirm,
+  JobInterestsApiError,
+  type JobInterestFirmRead,
+} from "@/lib/job-interests-api";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -32,6 +37,7 @@ const FirmDashboard = () => {
 
   const [firm, setFirm] = useState<FirmRead | null>(null);
   const [savedCandidates, setSavedCandidates] = useState<SavedCandidateRead[]>([]);
+  const [jobApplications, setJobApplications] = useState<JobInterestFirmRead[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -63,6 +69,34 @@ const FirmDashboard = () => {
       }
     };
 
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    if (!localUser || localUser.account_type !== "firm") {
+      setJobApplications([]);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const rows = await listJobInterestsForFirm(localUser.id);
+        if (!cancelled) setJobApplications(rows);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setJobApplications([]);
+          setLoadError(
+            e instanceof JobInterestsApiError
+              ? e.message
+              : "Could not load job applications.",
+          );
+        }
+      }
+    };
     void run();
     return () => {
       cancelled = true;
@@ -244,10 +278,28 @@ const FirmDashboard = () => {
             variants={fadeUp}
             custom={2}
           >
-            <h3 className="font-display text-base font-semibold text-foreground mb-2">Introduction Requests</h3>
-            <p className="text-sm text-muted-foreground">
-              Introduction workflow is out of scope for this phase. No mock connection data is shown here.
-            </p>
+            <h3 className="font-display text-base font-semibold text-foreground mb-2">Job Applications</h3>
+            {jobApplications.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No job applications yet.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {jobApplications.slice(0, 6).map((a) => (
+                  <div key={a.id} className="rounded-lg border border-border p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {a.job_role_title}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {a.candidate_practice_area ?? "Lawyer"} ·{" "}
+                      {a.candidate_pqe_is_range
+                        ? `${a.candidate_pqe_range_min ?? "?"}-${a.candidate_pqe_range_max ?? "?"} PQE`
+                        : `${a.candidate_years_post_qualification ?? "?"} PQE`}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
         </div>
       </div>
