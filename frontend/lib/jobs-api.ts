@@ -15,6 +15,7 @@ export type JobRead = {
   salary_min_k: number | null;
   salary_max_k: number | null;
   work_arrangement: WorkArrangement;
+  close_reason: string | null;
   status: JobStatus;
   posted_at: string;
   created_at: string;
@@ -100,7 +101,11 @@ export async function updateJob(
 
 export async function patchJobStatus(
   jobId: number,
-  body: { firm_user_id: number; status: "closed" | "removed" },
+  body: {
+    firm_user_id: number;
+    status: "open" | "closed" | "removed";
+    close_reason?: string;
+  },
 ): Promise<JobRead> {
   const res = await fetch(`${base()}/${jobId}`, {
     method: "PATCH",

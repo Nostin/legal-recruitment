@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
-import { Briefcase, MapPin, GraduationCap, Search, Send, Building, Scale, ChevronLeft, ChevronRight, X, MessageSquare, BadgeCheck, StickyNote, Users, ArrowRight, Star, ChevronUp, Globe, DollarSign, FileText, CreditCard, Clock, Home } from "lucide-react";
+import { Briefcase, MapPin, GraduationCap, Search, Send, Building, Scale, ChevronLeft, ChevronRight, X, MessageSquare, BadgeCheck, StickyNote, Users, ArrowRight, Star, ChevronUp, Globe, DollarSign, FileText, CreditCard, Clock, Home, Bookmark } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
@@ -24,6 +24,12 @@ import {
   IntroductionApiError,
   listIntroductionsForFirm,
 } from "@/lib/introduction-requests-api";
+import {
+  listSavedCandidatesForFirm,
+  saveCandidate,
+  unsaveCandidate,
+  SavedCandidatesApiError,
+} from "@/lib/saved-candidates-api";
 
 const ITEMS_PER_PAGE = 12;
 
@@ -43,6 +49,9 @@ const TalentSearch = () => {
   const { localUser } = useOpenCourtUser();
 
   const [sentCandidateProfileIds, setSentCandidateProfileIds] = useState<
+    Set<number>
+  >(() => new Set());
+  const [savedCandidateProfileIds, setSavedCandidateProfileIds] = useState<
     Set<number>
   >(() => new Set());
 
@@ -116,9 +125,26 @@ const TalentSearch = () => {
     }
   }, [localUser?.id, localUser?.account_type]);
 
+  const refreshFirmSavedTargets = useCallback(async () => {
+    if (!localUser?.id || localUser.account_type !== "firm") {
+      setSavedCandidateProfileIds(new Set());
+      return;
+    }
+    try {
+      const rows = await listSavedCandidatesForFirm(localUser.id);
+      setSavedCandidateProfileIds(new Set(rows.map((r) => r.candidate_profile_id)));
+    } catch {
+      setSavedCandidateProfileIds(new Set());
+    }
+  }, [localUser?.id, localUser?.account_type]);
+
   useEffect(() => {
     void refreshFirmIntroTargets();
   }, [refreshFirmIntroTargets]);
+
+  useEffect(() => {
+    void refreshFirmSavedTargets();
+  }, [refreshFirmSavedTargets]);
 
   // Intro request fields
   const [introMessage, setIntroMessage] = useState("");
@@ -132,7 +158,6 @@ const TalentSearch = () => {
 
   // Optional reveal values (empty or "Don't share" = not shared)
   const [firmNameValue, setFirmNameValue] = useState("");
-  const [compRangeValue, setCompRangeValue] = useState("");
   const [revealRoleDesc, setRevealRoleDesc] = useState(false);
   const [roleDescValue, setRoleDescValue] = useState("");
 
@@ -155,10 +180,38 @@ const TalentSearch = () => {
     setIntroSponsorship("");
     setIntroSalaryBand("");
     setFirmNameValue("");
-    setCompRangeValue("");
     setRevealRoleDesc(false);
     setRoleDescValue("");
     setIntroSent(false);
+  };
+
+  const toggleSavedCandidate = async (candidateProfileId: number) => {
+    if (!localUser?.id || localUser.account_type !== "firm") return;
+    const alreadySaved = savedCandidateProfileIds.has(candidateProfileId);
+    try {
+      if (alreadySaved) {
+        await unsaveCandidate(candidateProfileId, localUser.id);
+      } else {
+        await saveCandidate({
+          firm_user_id: localUser.id,
+          candidate_profile_id: candidateProfileId,
+        });
+      }
+      setSavedCandidateProfileIds((prev) => {
+        const next = new Set(prev);
+        if (alreadySaved) next.delete(candidateProfileId);
+        else next.add(candidateProfileId);
+        return next;
+      });
+      toast.success(alreadySaved ? "Candidate unsaved" : "Candidate saved");
+      void refreshFirmSavedTargets();
+    } catch (e: unknown) {
+      toast.error(
+        e instanceof SavedCandidatesApiError
+          ? e.message
+          : "Could not update saved candidates.",
+      );
+    }
   };
 
   const sendIntro = async () => {
@@ -179,7 +232,6 @@ const TalentSearch = () => {
         salary_band: introSalaryBand,
         firm_message: introMessage.trim(),
         revealed_firm_name: firmNameValue.trim() || undefined,
-        revealed_compensation: compRangeValue.trim() || undefined,
         revealed_role_description: revealRoleDesc
           ? roleDescValue.trim() || undefined
           : undefined,
@@ -365,6 +417,17 @@ const TalentSearch = () => {
                   </>
                 )}
               </Button>
+              {isFirm && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="w-full mt-2"
+                  onClick={() => void toggleSavedCandidate(c.id)}
+                >
+                  <Bookmark className="mr-2 h-3.5 w-3.5" />
+                  {savedCandidateProfileIds.has(c.id) ? "Saved" : "Save Candidate"}
+                </Button>
+              )}
               {signedIn && !isFirm && (
                 <p className="text-[11px] text-muted-foreground text-center mt-1.5">
                   Switch to a hiring firm account to send introduction requests.
@@ -626,16 +689,6 @@ const TalentSearch = () => {
                           Firm Name
                         </Label>
                         <Input placeholder="Don't share" value={firmNameValue} onChange={e => setFirmNameValue(e.target.value)} />
-                      </div>
-
-                      {/* Compensation Details */}
-                      <div className="space-y-2">
-                        <Label className="flex items-center gap-1.5">
-                          <DollarSign className="h-3.5 w-3.5" />
-                          Compensation Details
-                        </Label>
-                        <Input placeholder="Don't share" value={compRangeValue} onChange={e => setCompRangeValue(e.target.value)} />
-                        <p className="text-[11px] text-muted-foreground">e.g. $350k–$450k base + 20% bonus. Leave blank to not share.</p>
                       </div>
 
                       {/* Role Description */}

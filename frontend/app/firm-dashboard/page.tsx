@@ -12,6 +12,11 @@ import {
   FirmsApiError,
   type FirmRead,
 } from "@/lib/firms-api";
+import {
+  listSavedCandidatesForFirm,
+  SavedCandidatesApiError,
+  type SavedCandidateRead,
+} from "@/lib/saved-candidates-api";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -26,6 +31,7 @@ const FirmDashboard = () => {
   const { localUser, bootstrapLoading, bootstrapError } = useOpenCourtUser();
 
   const [firm, setFirm] = useState<FirmRead | null>(null);
+  const [savedCandidates, setSavedCandidates] = useState<SavedCandidateRead[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -57,6 +63,34 @@ const FirmDashboard = () => {
       }
     };
 
+    void run();
+    return () => {
+      cancelled = true;
+    };
+  }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
+
+  useEffect(() => {
+    if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
+    if (!localUser || localUser.account_type !== "firm") {
+      setSavedCandidates([]);
+      return;
+    }
+    let cancelled = false;
+    const run = async () => {
+      try {
+        const rows = await listSavedCandidatesForFirm(localUser.id);
+        if (!cancelled) setSavedCandidates(rows);
+      } catch (e: unknown) {
+        if (!cancelled) {
+          setSavedCandidates([]);
+          setLoadError(
+            e instanceof SavedCandidatesApiError
+              ? e.message
+              : "Could not load saved candidates.",
+          );
+        }
+      }
+    };
     void run();
     return () => {
       cancelled = true;
@@ -177,12 +211,30 @@ const FirmDashboard = () => {
             variants={fadeUp}
             custom={1}
           >
-            <h3 className="font-display text-base font-semibold text-foreground mb-2">Saved Candidate Searches</h3>
-            <p className="text-sm text-muted-foreground">
-              Saved searches and counts are not connected to the API in this phase. Use{" "}
-              <Link href="/search" className="text-accent underline">Find Talent</Link>{" "}
-              to browse live profiles.
-            </p>
+            <h3 className="font-display text-base font-semibold text-foreground mb-2">Saved Candidates</h3>
+            {savedCandidates.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No saved candidates yet. Save profiles from{" "}
+                <Link href="/search" className="text-accent underline">Find Talent</Link>.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {savedCandidates.slice(0, 6).map((s) => (
+                  <div key={s.id} className="rounded-lg border border-border p-3">
+                    <p className="text-sm font-medium text-foreground">
+                      {(s.practice_area ?? "Lawyer")} {s.title ? `· ${s.title}` : ""}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {s.pqe_is_range
+                        ? `${s.pqe_range_min ?? "?"}-${s.pqe_range_max ?? "?"} PQE`
+                        : `${s.years_post_qualification ?? "?"} PQE`}
+                      {" · "}
+                      {s.firm_tier ?? "—"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
           </motion.div>
 
           <motion.div

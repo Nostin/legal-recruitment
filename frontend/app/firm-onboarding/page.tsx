@@ -157,12 +157,6 @@ const FirmOnboarding = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <div className="container max-w-2xl mx-auto px-6 pt-6">
-        <Button size="sm" variant="ghost" asChild>
-          <Link href="/join">Back</Link>
-        </Button>
-      </div>
-
       <div className="container max-w-2xl mx-auto px-6 py-12">
         {bootstrapError && (
           <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
@@ -352,10 +346,13 @@ const FirmOnboarding = () => {
         <div className="flex justify-between mt-8">
           <Button
             variant="ghost"
-            onClick={() => setStep(s => s - 1)}
-            disabled={step === 1}
+            onClick={() => {
+              if (loadedRow) router.push("/firm-dashboard");
+              else setStep(s => s - 1);
+            }}
+            disabled={step === 1 && !loadedRow}
           >
-            <ArrowLeft className="mr-2 h-4 w-4" /> Back
+            <ArrowLeft className="mr-2 h-4 w-4" /> Cancel
           </Button>
           {step < 3 ? (
             <Button onClick={goNext} disabled={!canContinue}>

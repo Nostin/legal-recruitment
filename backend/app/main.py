@@ -6,6 +6,7 @@ from app.routes.firms import router as firms_router
 from app.routes.health import router as health_router
 from app.routes.introduction_requests import router as introduction_requests_router
 from app.routes.jobs import router as jobs_router
+from app.routes.saved_candidates import router as saved_candidates_router
 from app.routes.users import router as users_router
 
 app = FastAPI(title="OpenCourt API", version="0.1.0")
@@ -29,6 +30,7 @@ app.include_router(
     tags=["introduction-requests"],
 )
 app.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
+app.include_router(saved_candidates_router, prefix="/saved-candidates", tags=["saved-candidates"])
 
 
 @app.get("/")

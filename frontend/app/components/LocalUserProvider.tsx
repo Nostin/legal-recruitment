@@ -163,6 +163,22 @@ export function LocalUserProvider({ children }: { children: ReactNode }) {
     user,
   ]);
 
+  useEffect(() => {
+    if (!isLoaded || bootstrapLoading || bootstrapError) return;
+    if (!displayLocalUser) return;
+    if (!pathname.startsWith("/sign-in")) return;
+    if (displayLocalUser.account_type === "firm") {
+      router.replace("/search");
+    }
+  }, [
+    bootstrapError,
+    bootstrapLoading,
+    displayLocalUser,
+    isLoaded,
+    pathname,
+    router,
+  ]);
+
   const value = useMemo(
     () => ({
       localUser: displayLocalUser,

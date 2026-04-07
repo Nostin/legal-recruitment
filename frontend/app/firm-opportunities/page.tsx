@@ -12,6 +12,24 @@ import { Label } from "@/app/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
 import { Textarea } from "@/app/components/ui/textarea";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/app/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/app/components/ui/dialog";
+import {
   JobsApiError,
   createJob,
   listJobsForFirmUser,
@@ -82,6 +100,9 @@ export default function FirmOpportunitiesPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [editingJobId, setEditingJobId] = useState<number | null>(null);
+  const [removeTargetJobId, setRemoveTargetJobId] = useState<number | null>(null);
+  const [closeTargetJobId, setCloseTargetJobId] = useState<number | null>(null);
+  const [closeReason, setCloseReason] = useState("");
   const [form, setForm] = useState<FormState>(emptyForm);
 
   const isFirm = localUser?.account_type === "firm";
@@ -163,11 +184,15 @@ export default function FirmOpportunitiesPage() {
     }
   }
 
-  async function closeJob(jobId: number) {
+  async function closeJob(jobId: number, reason: string) {
     if (!localUser?.id) return;
     setSubmitting(true);
     try {
-      await patchJobStatus(jobId, { firm_user_id: localUser.id, status: "closed" });
+      await patchJobStatus(jobId, {
+        firm_user_id: localUser.id,
+        status: "closed",
+        close_reason: reason,
+      });
       toast.success("Opportunity closed.");
       if (editingJobId === jobId) {
         setEditingJobId(null);
@@ -183,7 +208,6 @@ export default function FirmOpportunitiesPage() {
 
   async function removeJob(jobId: number) {
     if (!localUser?.id) return;
-    if (!window.confirm("Remove this opportunity?")) return;
     setSubmitting(true);
     try {
       await patchJobStatus(jobId, { firm_user_id: localUser.id, status: "removed" });
@@ -195,6 +219,20 @@ export default function FirmOpportunitiesPage() {
       await loadJobs();
     } catch (e: unknown) {
       toast.error(e instanceof JobsApiError ? e.message : "Could not remove opportunity.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function reopenJob(jobId: number) {
+    if (!localUser?.id) return;
+    setSubmitting(true);
+    try {
+      await patchJobStatus(jobId, { firm_user_id: localUser.id, status: "open" });
+      toast.success("Opportunity reopened.");
+      await loadJobs();
+    } catch (e: unknown) {
+      toast.error(e instanceof JobsApiError ? e.message : "Could not reopen opportunity.");
     } finally {
       setSubmitting(false);
     }
@@ -380,26 +418,96 @@ export default function FirmOpportunitiesPage() {
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => void closeJob(job.id)}
+                      onClick={() => {
+                        setCloseTargetJobId(job.id);
+                        setCloseReason(job.close_reason ?? "");
+                      }}
                       disabled={job.status !== "open" || submitting}
                     >
                       <Briefcase className="mr-1.5 h-3.5 w-3.5" /> Close
                     </Button>
                     <Button
                       size="sm"
+                      variant="outline"
+                      onClick={() => void reopenJob(job.id)}
+                      disabled={job.status !== "closed" || submitting}
+                    >
+                      Reopen
+                    </Button>
+                    <Button
+                      size="sm"
                       variant="destructive"
-                      onClick={() => void removeJob(job.id)}
+                      onClick={() => setRemoveTargetJobId(job.id)}
                       disabled={job.status === "removed" || submitting}
                     >
                       <Trash2 className="mr-1.5 h-3.5 w-3.5" /> Remove
                     </Button>
                   </div>
+                  {job.status === "closed" && job.close_reason && (
+                    <p className="mt-2 text-xs text-muted-foreground">
+                      Close reason: {job.close_reason}
+                    </p>
+                  )}
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+      <AlertDialog open={removeTargetJobId !== null} onOpenChange={(open) => !open && setRemoveTargetJobId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove opportunity?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This marks the opportunity as removed and hides it from active use.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (removeTargetJobId) void removeJob(removeTargetJobId);
+                setRemoveTargetJobId(null);
+              }}
+            >
+              Confirm remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <Dialog open={closeTargetJobId !== null} onOpenChange={(open) => !open && setCloseTargetJobId(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close opportunity</DialogTitle>
+            <DialogDescription>
+              Add a reason for closing this role. You can reopen it later.
+            </DialogDescription>
+          </DialogHeader>
+          <Textarea
+            value={closeReason}
+            onChange={(e) => setCloseReason(e.target.value)}
+            placeholder="Why is this opportunity being closed?"
+            className="min-h-[90px]"
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCloseTargetJobId(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!closeTargetJobId) return;
+                void closeJob(closeTargetJobId, closeReason.trim());
+                setCloseTargetJobId(null);
+                setCloseReason("");
+              }}
+              disabled={!closeReason.trim()}
+            >
+              Close opportunity
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

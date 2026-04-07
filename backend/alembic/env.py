@@ -5,7 +5,7 @@ from sqlalchemy import engine_from_config, pool
 from alembic import context
 
 from app.database import Base, DATABASE_URL
-from app.models import CandidateProfile, FirmProfile, IntroductionRequest, Job, User  # noqa: F401
+from app.models import CandidateProfile, FirmProfile, IntroductionRequest, Job, SavedCandidate, User  # noqa: F401
 
 config = context.config
 

@@ -19,6 +19,7 @@ class JobRead(BaseModel):
     salary_min_k: int | None
     salary_max_k: int | None
     work_arrangement: WorkArrangement
+    close_reason: str | None
     status: JobStatus
     posted_at: datetime
     created_at: datetime
@@ -63,4 +64,5 @@ class JobUpdate(BaseModel):
 
 class JobStatusPatch(BaseModel):
     firm_user_id: int = Field(..., description="Must own the firm profile for this job")
-    status: Literal["closed", "removed"]
+    status: Literal["open", "closed", "removed"]
+    close_reason: str | None = Field(None, max_length=2000)

@@ -123,6 +123,16 @@ def patch_job_status(job_id: int, body: JobStatusPatch, db: Session = Depends(ge
             detail=f"Job is already {row.status.value}",
         )
 
+    if next_status == JobStatus.closed:
+        reason = (body.close_reason or "").strip()
+        if not reason:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="close_reason is required when closing a job",
+            )
+        row.close_reason = reason
+    elif next_status == JobStatus.open:
+        row.close_reason = None
     row.status = next_status
     db.commit()
     db.refresh(row)

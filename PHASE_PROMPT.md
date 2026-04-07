@@ -1,4 +1,4 @@
-Read ARCHITECTURE.md and PHASE_11_MVP.md.
+Read ARCHITECTURE.md and PHASE_12_CLEAN.md.
 
 Do not begin large refactors. Only change what is required to satisfy the phase instructions.
 

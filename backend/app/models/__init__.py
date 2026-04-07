@@ -133,6 +133,10 @@ class CandidateProfile(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="candidate_profile")
+    saved_by_firms: Mapped[list["SavedCandidate"]] = relationship(
+        back_populates="candidate_profile",
+        cascade="all, delete-orphan",
+    )
 
 
 class FirmProfile(Base):
@@ -169,6 +173,10 @@ class FirmProfile(Base):
 
     user: Mapped["User"] = relationship(back_populates="firm_profile")
     jobs: Mapped[list["Job"]] = relationship(
+        back_populates="firm_profile",
+        cascade="all, delete-orphan",
+    )
+    saved_candidates: Mapped[list["SavedCandidate"]] = relationship(
         back_populates="firm_profile",
         cascade="all, delete-orphan",
     )
@@ -254,6 +262,7 @@ class Job(Base):
     salary_min_k: Mapped[int | None] = mapped_column(Integer, nullable=True)
     salary_max_k: Mapped[int | None] = mapped_column(Integer, nullable=True)
     work_arrangement: Mapped[str] = mapped_column(String(32), nullable=False)
+    close_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[JobStatus] = mapped_column(
         Enum(JobStatus, name="job_status", native_enum=False, length=16),
         nullable=False,
@@ -276,3 +285,32 @@ class Job(Base):
     )
 
     firm_profile: Mapped["FirmProfile"] = relationship(back_populates="jobs")
+
+
+class SavedCandidate(Base):
+    __tablename__ = "saved_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "firm_profile_id",
+            "candidate_profile_id",
+            name="uq_saved_candidate_firm_candidate",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    firm_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("firm_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    candidate_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    firm_profile: Mapped["FirmProfile"] = relationship(back_populates="saved_candidates")
+    candidate_profile: Mapped["CandidateProfile"] = relationship(back_populates="saved_by_firms")
