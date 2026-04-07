@@ -69,6 +69,11 @@ export async function getFirm(id: number): Promise<FirmRead> {
   return parseJson<FirmRead>(res);
 }
 
+export async function listFirms(): Promise<FirmRead[]> {
+  const res = await fetch(base(), { method: "GET" });
+  return parseJson<FirmRead[]>(res);
+}
+
 /** Returns null when this user has no firm profile (HTTP 404). */
 export async function fetchFirmForUser(
   userId: number,

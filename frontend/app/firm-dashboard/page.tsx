@@ -192,19 +192,6 @@ const FirmDashboard = () => {
             variants={fadeUp}
             custom={2}
           >
-            <h3 className="font-display text-base font-semibold text-foreground mb-2">Recently Viewed Profiles</h3>
-            <p className="text-sm text-muted-foreground">
-              Recent views are not stored yet. Candidate results on Search use live database data.
-            </p>
-          </motion.div>
-
-          <motion.div
-            className="rounded-xl border border-border bg-card p-6 lg:col-span-1"
-            initial="hidden"
-            animate="visible"
-            variants={fadeUp}
-            custom={3}
-          >
             <h3 className="font-display text-base font-semibold text-foreground mb-2">Introduction Requests</h3>
             <p className="text-sm text-muted-foreground">
               Introduction workflow is out of scope for this phase. No mock connection data is shown here.

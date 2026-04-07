@@ -8,6 +8,11 @@ from app.schemas.firm import FirmCreate, FirmRead, FirmUpdate
 router = APIRouter()
 
 
+@router.get("", response_model=list[FirmRead])
+def list_firms(db: Session = Depends(get_db)) -> list[FirmProfile]:
+    return db.query(FirmProfile).order_by(FirmProfile.firm_name.asc()).all()
+
+
 @router.get("/by-user/{user_id}", response_model=FirmRead)
 def get_firm_by_user(user_id: int, db: Session = Depends(get_db)) -> FirmProfile:
     row = (

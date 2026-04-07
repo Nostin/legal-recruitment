@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { motion } from "framer-motion";
 import { useUser } from "@clerk/nextjs";
-import { Shield, Eye, EyeOff, Ban, Bell, Save } from "lucide-react";
+import { Shield, Eye, EyeOff, Ban, Bell, Save, X } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Switch } from "@/app/components/ui/switch";
@@ -15,11 +15,7 @@ import {
   updateCandidate,
   CandidatesApiError,
 } from "@/lib/candidates-api";
-
-const allFirms = [
-  "Allens", "Ashurst", "Baker McKenzie", "Clayton Utz", "Corrs Chambers Westgarth",
-  "DLA Piper", "Herbert Smith Freehills", "King & Wood Mallesons", "MinterEllison", "Norton Rose Fulbright",
-];
+import { listFirms, FirmsApiError } from "@/lib/firms-api";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 16 },
@@ -39,6 +35,8 @@ const LawyerSettings = () => {
   const [profileId, setProfileId] = useState<number | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [loadingProfile, setLoadingProfile] = useState(true);
+  const [allFirmNames, setAllFirmNames] = useState<string[]>([]);
+  const [firmSearch, setFirmSearch] = useState("");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -60,7 +58,7 @@ const LawyerSettings = () => {
           return;
         }
         setProfileId(row.id);
-        setBlockedFirms(row.excluded_firms ?? []);
+        setBlockedFirms(Array.from(new Set(row.excluded_firms ?? [])));
         setOpenToIntros(row.open_to_roles);
       })
       .catch((e: unknown) => {
@@ -80,11 +78,35 @@ const LawyerSettings = () => {
     };
   }, [bootstrapError, bootstrapLoading, clerkLoaded, localUser]);
 
-  const toggleBlock = (firm: string) => {
-    setBlockedFirms(prev =>
-      prev.includes(firm) ? prev.filter(f => f !== firm) : [...prev, firm]
-    );
+  useEffect(() => {
+    listFirms()
+      .then((rows) => {
+        const names = rows
+          .map((r) => r.firm_name.trim())
+          .filter(Boolean);
+        setAllFirmNames(Array.from(new Set(names)).sort((a, b) => a.localeCompare(b)));
+      })
+      .catch((e: unknown) => {
+        if (e instanceof FirmsApiError) {
+          setLoadError((prev) => prev ?? e.message);
+        }
+      });
+  }, []);
+
+  const removeBlockedFirm = (firm: string) => {
+    setBlockedFirms((prev) => prev.filter((f) => f !== firm));
   };
+
+  const addBlockedFirm = (firm: string) => {
+    setBlockedFirms((prev) => (prev.includes(firm) ? prev : [...prev, firm]));
+    setFirmSearch("");
+  };
+
+  const availableFirms = allFirmNames.filter((firm) => {
+    if (blockedFirms.includes(firm)) return false;
+    if (!firmSearch.trim()) return true;
+    return firm.toLowerCase().includes(firmSearch.toLowerCase().trim());
+  });
 
   const handleSave = async () => {
     if (!profileId) {
@@ -94,7 +116,10 @@ const LawyerSettings = () => {
     setSaving(true);
     try {
       await updateCandidate(profileId, {
-        excluded_firms: blockedFirms.length > 0 ? blockedFirms : null,
+        excluded_firms:
+          blockedFirms.length > 0
+            ? Array.from(new Set(blockedFirms))
+            : null,
         open_to_roles: openToIntros,
       });
       toast.success("Settings saved", {
@@ -176,18 +201,49 @@ const LawyerSettings = () => {
               <p className="text-xs text-muted-foreground">Your profile will be hidden from these firms entirely.</p>
             </div>
           </div>
-          <div className="flex flex-wrap gap-2">
-            {allFirms.map(firm => (
-              <Badge
-                key={firm}
-                variant={blockedFirms.includes(firm) ? "destructive" : "outline"}
-                className="cursor-pointer transition-colors"
-                onClick={() => toggleBlock(firm)}
-              >
-                {blockedFirms.includes(firm) && <Ban className="h-3 w-3 mr-1" />}
-                {firm}
-              </Badge>
-            ))}
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground">Add blocked firm</Label>
+              <input
+                className="mt-1 h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                placeholder="Search firm names..."
+                value={firmSearch}
+                onChange={(e) => setFirmSearch(e.target.value)}
+                disabled={loadingProfile || localUser?.account_type !== "candidate"}
+              />
+            </div>
+            {availableFirms.length > 0 && (
+              <div className="max-h-40 overflow-auto rounded-lg border border-border">
+                {availableFirms.slice(0, 12).map((firm) => (
+                  <button
+                    key={firm}
+                    className="block w-full px-3 py-2 text-left text-sm hover:bg-muted"
+                    onClick={() => addBlockedFirm(firm)}
+                    type="button"
+                  >
+                    {firm}
+                  </button>
+                ))}
+              </div>
+            )}
+            <div className="flex flex-wrap gap-2">
+              {blockedFirms.length === 0 && (
+                <p className="text-xs text-muted-foreground">No blocked firms selected.</p>
+              )}
+              {blockedFirms.map((firm) => (
+                <Badge key={firm} variant="secondary" className="gap-1.5">
+                  <Ban className="h-3 w-3" />
+                  {firm}
+                  <button
+                    type="button"
+                    onClick={() => removeBlockedFirm(firm)}
+                    aria-label={`Remove ${firm}`}
+                  >
+                    <X className="h-3 w-3" />
+                  </button>
+                </Badge>
+              ))}
+            </div>
           </div>
         </motion.div>
 

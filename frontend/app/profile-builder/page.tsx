@@ -97,6 +97,7 @@ const ProfileBuilder = () => {
 
   const [loadedRow, setLoadedRow] = useState<CandidateRead | null>(null);
   const [profileLoadError, setProfileLoadError] = useState<string | null>(null);
+  const [hydratingProfile, setHydratingProfile] = useState(true);
   const [submitting, setSubmitting] = useState(false);
 
   const applyLoadedProfile = useCallback((p: CandidateRead) => {
@@ -140,9 +141,13 @@ const ProfileBuilder = () => {
 
   useEffect(() => {
     if (!clerkLoaded || bootstrapLoading || bootstrapError) return;
-    if (!localUser || localUser.account_type !== "candidate") return;
+    if (!localUser || localUser.account_type !== "candidate") {
+      setHydratingProfile(false);
+      return;
+    }
     let cancelled = false;
     setProfileLoadError(null);
+    setHydratingProfile(true);
     fetchCandidateForUser(localUser.id)
       .then((row) => {
         if (cancelled || !row) return;
@@ -153,6 +158,9 @@ const ProfileBuilder = () => {
         const msg =
           e instanceof CandidatesApiError ? e.message : "Could not load profile.";
         setProfileLoadError(msg);
+      })
+      .finally(() => {
+        if (!cancelled) setHydratingProfile(false);
       });
     return () => {
       cancelled = true;
@@ -347,6 +355,11 @@ const ProfileBuilder = () => {
             {profileLoadError}
           </p>
         )}
+        {hydratingProfile && (
+          <p className="rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground mb-6">
+            Loading saved profile data. Editing is temporarily disabled.
+          </p>
+        )}
         {clerkLoaded &&
           localUser &&
           localUser.account_type !== "candidate" && (
@@ -359,7 +372,12 @@ const ProfileBuilder = () => {
             </p>
           )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-12">
+        <div
+          className={`grid grid-cols-1 lg:grid-cols-5 gap-12 ${
+            hydratingProfile ? "pointer-events-none opacity-70" : ""
+          }`}
+          aria-busy={hydratingProfile}
+        >
           {/* Form */}
           <div className="lg:col-span-3 space-y-8">
             <div>
@@ -752,13 +770,14 @@ const ProfileBuilder = () => {
                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
               </Button>
               {step < TOTAL_STEPS ? (
-                <Button onClick={goNext}>
+                <Button onClick={goNext} disabled={hydratingProfile}>
                   {step === 4 && !hasVerification ? "Skip" : "Continue"}{" "}
                   <ArrowRight className="ml-2 h-4 w-4" />
                 </Button>
               ) : (
                 <Button
                   disabled={
+                    hydratingProfile ||
                     submitting ||
                     bootstrapLoading ||
                     bootstrapError ||
