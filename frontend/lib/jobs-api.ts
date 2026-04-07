@@ -78,6 +78,13 @@ export async function listJobsForFirmUser(
   return parseJson<JobRead[]>(res);
 }
 
+export async function listOpenJobs(): Promise<JobRead[]> {
+  const u = new URL(base());
+  u.searchParams.set("status", "open");
+  const res = await fetch(u.toString(), { method: "GET" });
+  return parseJson<JobRead[]>(res);
+}
+
 export async function createJob(body: JobCreateBody): Promise<JobRead> {
   const res = await fetch(base(), {
     method: "POST",

@@ -65,6 +65,9 @@ export function AppHeader() {
           ) : isCandidate ? (
             <>
               <Button variant="ghost" size="sm" asChild>
+                <Link href="/opportunities">Opportunities</Link>
+              </Button>
+              <Button variant="ghost" size="sm" asChild>
                 <Link href="/notifications">
                   <Bell className="mr-1.5 h-4 w-4 sm:inline" />
                   <span className="hidden sm:inline">Notifications</span>

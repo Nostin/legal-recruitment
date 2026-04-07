@@ -137,6 +137,10 @@ class CandidateProfile(Base):
         back_populates="candidate_profile",
         cascade="all, delete-orphan",
     )
+    job_interest_submissions: Mapped[list["JobInterestSubmission"]] = relationship(
+        back_populates="candidate_profile",
+        cascade="all, delete-orphan",
+    )
 
 
 class FirmProfile(Base):
@@ -285,6 +289,10 @@ class Job(Base):
     )
 
     firm_profile: Mapped["FirmProfile"] = relationship(back_populates="jobs")
+    interest_submissions: Mapped[list["JobInterestSubmission"]] = relationship(
+        back_populates="job",
+        cascade="all, delete-orphan",
+    )
 
 
 class SavedCandidate(Base):
@@ -314,3 +322,34 @@ class SavedCandidate(Base):
 
     firm_profile: Mapped["FirmProfile"] = relationship(back_populates="saved_candidates")
     candidate_profile: Mapped["CandidateProfile"] = relationship(back_populates="saved_by_firms")
+
+
+class JobInterestSubmission(Base):
+    __tablename__ = "job_interest_submissions"
+    __table_args__ = (
+        UniqueConstraint(
+            "job_id",
+            "candidate_profile_id",
+            name="uq_job_interest_job_candidate",
+        ),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[int] = mapped_column(
+        ForeignKey("jobs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    candidate_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("candidate_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    job: Mapped["Job"] = relationship(back_populates="interest_submissions")
+    candidate_profile: Mapped["CandidateProfile"] = relationship(
+        back_populates="job_interest_submissions"
+    )

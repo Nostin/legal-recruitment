@@ -40,6 +40,7 @@ const PROTECTED_PATHS = new Set([
   "/firm-dashboard",
   "/notifications",
   "/lawyer-settings",
+  "/opportunities",
 ]);
 
 export function useOpenCourtUser(): LocalUserContextValue {
@@ -169,6 +170,10 @@ export function LocalUserProvider({ children }: { children: ReactNode }) {
     if (!pathname.startsWith("/sign-in")) return;
     if (displayLocalUser.account_type === "firm") {
       router.replace("/search");
+      return;
+    }
+    if (displayLocalUser.account_type === "candidate") {
+      router.replace("/opportunities");
     }
   }, [
     bootstrapError,

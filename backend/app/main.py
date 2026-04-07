@@ -5,6 +5,7 @@ from app.routes.candidates import router as candidates_router
 from app.routes.firms import router as firms_router
 from app.routes.health import router as health_router
 from app.routes.introduction_requests import router as introduction_requests_router
+from app.routes.job_interests import router as job_interests_router
 from app.routes.jobs import router as jobs_router
 from app.routes.saved_candidates import router as saved_candidates_router
 from app.routes.users import router as users_router
@@ -31,6 +32,7 @@ app.include_router(
 )
 app.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 app.include_router(saved_candidates_router, prefix="/saved-candidates", tags=["saved-candidates"])
+app.include_router(job_interests_router, prefix="/job-interests", tags=["job-interests"])
 
 
 @app.get("/")
