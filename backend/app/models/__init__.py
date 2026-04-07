@@ -168,6 +168,10 @@ class FirmProfile(Base):
     )
 
     user: Mapped["User"] = relationship(back_populates="firm_profile")
+    jobs: Mapped[list["Job"]] = relationship(
+        back_populates="firm_profile",
+        cascade="all, delete-orphan",
+    )
 
 
 class IntroductionStatus(str, enum.Enum):
@@ -226,3 +230,49 @@ class IntroductionRequest(Base):
 
     firm_profile: Mapped["FirmProfile"] = relationship()
     candidate_profile: Mapped["CandidateProfile"] = relationship()
+
+
+class JobStatus(str, enum.Enum):
+    open = "open"
+    closed = "closed"
+    removed = "removed"
+
+
+class Job(Base):
+    __tablename__ = "jobs"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    firm_profile_id: Mapped[int] = mapped_column(
+        ForeignKey("firm_profiles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    role_title: Mapped[str] = mapped_column(String(255), nullable=False)
+    location: Mapped[str] = mapped_column(String(128), nullable=False)
+    practice_area: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    salary_min_k: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    salary_max_k: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    work_arrangement: Mapped[str] = mapped_column(String(32), nullable=False)
+    status: Mapped[JobStatus] = mapped_column(
+        Enum(JobStatus, name="job_status", native_enum=False, length=16),
+        nullable=False,
+        server_default=text("'open'"),
+        default=JobStatus.open,
+    )
+    posted_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    firm_profile: Mapped["FirmProfile"] = relationship(back_populates="jobs")
