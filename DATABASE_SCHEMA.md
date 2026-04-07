@@ -1,9 +1,3 @@
-
----
-
-# `DATABASE_SCHEMA.md`
-
-```md
 # Database Schema
 
 ## Overview
@@ -15,6 +9,8 @@ The schema is relational and centers around:
 - firm profiles
 - introduction requests
 - jobs
+- saved candidates
+- job-interest submissions / job applications
 
 This document describes the main schema concepts. It is not a substitute for the live database or Alembic migrations.
 
@@ -54,13 +50,14 @@ Stores profile-builder and related candidate data used in:
 - firm browse/search
 - intro requests
 - settings/preferences
+- opportunities / job-interest flows
 
 ### Relationship
 - linked to `users`
 - usually one candidate profile per candidate user
 
 ### Important structured fields
-Examples of structured fields added during MVP work include:
+Examples of important structured fields include:
 - `practice_area`
 - `years_post_qualification`
 - `firm_tier`
@@ -76,6 +73,7 @@ Examples of structured fields added during MVP work include:
 - `primary_admission`
 - `admission_year`
 - `source_profile_url`
+- `profile_summary`
 
 ### Notes
 Important candidate fields should remain structured where possible.
@@ -92,6 +90,7 @@ Stores firm onboarding/profile information used in:
 - dashboard display
 - jobs ownership
 - intro requests
+- saved-candidate and application views
 
 ### Relationship
 - linked to `users`
@@ -135,7 +134,7 @@ Examples:
 - `employment_type`
 - `work_arrangement`
 - `sponsorship_qualification`
-- `salary_band`
+- `compensation`
 - `firm_message`
 - `revealed_firm_name`
 - `revealed_compensation`
@@ -172,6 +171,7 @@ Examples:
 - `salary_max_k`
 - `work_arrangement`
 - `status`
+- `close_reason`
 - `posted_at`
 - `created_at`
 - `updated_at`
@@ -183,14 +183,49 @@ The jobs domain uses a status model such as:
 - `removed`
 
 ### Notes
-Jobs are part of the MVP foundation and support create/edit/close/remove workflows on the firm side.
+Jobs support create/edit/close/reopen/remove workflows on the firm side.
+
+---
+
+## `saved_candidates`
+Represents a firm saving a candidate for later review.
+
+### Purpose
+Stores:
+- which firm saved which candidate
+- enough persistence to render saved-candidate state in search and dashboard
+
+### Relationships
+- FK to `firm_profiles` or equivalent firm ownership reference
+- FK to `candidate_profiles`
+
+### Notes
+The table should prevent duplicate saves for the same firm/candidate pair.
+Saved candidates are shown on the firm dashboard and reflected in browse/search UI.
+
+---
+
+## `job_interest_submissions` / job applications
+Represents a candidate expressing interest in a firm’s job opportunity.
+
+### Purpose
+Stores:
+- which candidate expressed interest in which job
+- the candidate-to-job relationship used for firm visibility on dashboard and notifications
+- duplicate-prevention for the same candidate/job combination
+
+### Relationships
+- FK to `jobs`
+- FK to `candidate_profiles`
+
+### Notes
+This is the persistence layer behind the candidate-side `I am interested` flow and the firm-side job application views.
 
 ---
 
 ## Possible Supporting Data
 Depending on the final MVP state, there may also be lightweight supporting persistence for areas like:
-- recent profile views
-- blocked firms/preferences
+- blocked firms/preferences storage in candidate settings
 - seed/demo data
 
 These should be confirmed against the live database and current migrations.
@@ -218,23 +253,27 @@ psql postgresql://seanthompson@localhost:5432/legal
 
 Useful commands:
 
-```
+```sql
 \dt
 \d users
 \d candidate_profiles
 \d firm_profiles
 \d introduction_requests
 \d jobs
+\d saved_candidates
+\d job_interest_submissions
 ```
 
 To inspect data:
 
-```
+```sql
 select * from users order by id desc limit 10;
 select * from candidate_profiles order by id desc limit 10;
 select * from firm_profiles order by id desc limit 10;
 select * from introduction_requests order by id desc limit 10;
 select * from jobs order by id desc limit 10;
+select * from saved_candidates order by id desc limit 10;
+select * from job_interest_submissions order by id desc limit 10;
 ```
 
 ---
@@ -244,7 +283,6 @@ select * from jobs order by id desc limit 10;
 This document should describe the schema as it actually exists, not as an idealized future design.
 
 When the schema changes:
-
 - update this document
 - update related architecture docs
 - keep docs aligned to reality

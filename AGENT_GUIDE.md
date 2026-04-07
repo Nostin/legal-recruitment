@@ -1,9 +1,3 @@
-
----
-
-# `AGENT_GUIDE.md`
-
-```md
 # Agent Guide
 
 This file exists to help future agent runs make safe, scoped changes to OpenCourt.
@@ -12,7 +6,7 @@ This file exists to help future agent runs make safe, scoped changes to OpenCour
 
 Before making changes:
 1. read `SYSTEM_OVERVIEW.md`
-2. read the architecture or feature phase doc relevant to the work
+2. read the architecture or phase doc relevant to the work
 3. inspect the repo structure
 4. summarize a short implementation plan before editing
 
@@ -52,7 +46,7 @@ When working on a task:
 - only change what is required for that task
 - do not “clean up” unrelated parts of the app
 - do not touch auth/bootstrap unless the task explicitly requires it
-- do not touch candidate flow, firm flow, jobs, or intro requests outside the scoped change unless a minimal shared fix is required
+- do not touch candidate flow, firm flow, jobs, intro requests, or applications outside the scoped change unless a minimal shared fix is required
 
 ---
 
@@ -64,6 +58,7 @@ When possible, verify using:
 - frontend build checks
 - lint on modified files
 - database queries for persistence
+- manual browser checks when UX state matters
 
 If a verification step cannot be run, say so explicitly.
 
@@ -79,6 +74,7 @@ Do not infer runtime success from file generation alone.
 - keep Alembic migrations clean and focused
 - add foreign keys where appropriate
 - do not invent speculative service layers
+- prefer a single explicit status field rather than multiple overlapping booleans
 
 ---
 
@@ -90,6 +86,7 @@ Do not infer runtime success from file generation alone.
 - do not hardcode multiple backend ports/hosts
 - prefer structured backend fields over parsing summary blobs
 - do not invent new pages or controls unless explicitly required
+- keep touched files lint clean even if the full repo has unrelated lint noise
 
 ---
 
@@ -98,8 +95,8 @@ Do not infer runtime success from file generation alone.
 - Clerk handles sign-in
 - local DB handles app user/account type
 - do not redesign auth unless explicitly asked
-- do not break LocalUserProvider/bootstrap logic casually
-- account type in local DB is the source of truth
+- do not break `LocalUserProvider` or bootstrap logic casually
+- `users.account_type` in local DB is the source of truth
 
 See `AUTHENTICATION.md`.
 
@@ -111,6 +108,7 @@ See `AUTHENTICATION.md`.
 - verify DB connectivity before migration/seed work
 - do not assume the DB is reachable without proving it
 - when required, inspect tables directly using `psql`
+- keep schema changes focused and aligned to current product reality
 
 See `DATABASE_SCHEMA.md`.
 
@@ -125,3 +123,4 @@ A task is complete when:
 - verification steps were actually run
 - results were reported honestly
 - manual follow-up, if still needed, is explicitly called out
+- fake or placeholder UI is not left pretending to be real functionality
