@@ -1,9 +1,9 @@
 "use client"
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
-import { useClerk, useUser } from "@clerk/nextjs";
-import { Briefcase, MapPin, GraduationCap, Search, Send, Building, Scale, ChevronLeft, ChevronRight, X, MessageSquare, BadgeCheck, StickyNote, Users, ArrowRight, Star, ChevronUp, User, ChevronDown, Settings, Globe, DollarSign, FileText, CreditCard, Clock, Home } from "lucide-react";
+import { useUser } from "@clerk/nextjs";
+import { Briefcase, MapPin, GraduationCap, Search, Send, Building, Scale, ChevronLeft, ChevronRight, X, MessageSquare, BadgeCheck, StickyNote, Users, ArrowRight, Star, ChevronUp, Globe, DollarSign, FileText, CreditCard, Clock, Home } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
 import { Badge } from "@/app/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/app/components/ui/select";
@@ -11,7 +11,6 @@ import { Textarea } from "@/app/components/ui/textarea";
 import { Input } from "@/app/components/ui/input";
 import { Label } from "@/app/components/ui/label";
 import { Switch } from "@/app/components/ui/switch";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/app/components/ui/dropdown-menu";
 import { toast } from "sonner";
 import { useOpenCourtUser } from "@/app/components/LocalUserProvider";
 import {
@@ -23,6 +22,7 @@ import {
 import {
   createIntroductionRequest,
   IntroductionApiError,
+  listIntroductionsForFirm,
 } from "@/lib/introduction-requests-api";
 
 const ITEMS_PER_PAGE = 12;
@@ -39,9 +39,12 @@ const introSalaryBands = [
 ];
 
 const TalentSearch = () => {
-  const { user, isLoaded: clerkLoaded } = useUser();
-  const { signOut } = useClerk();
+  const { user } = useUser();
   const { localUser } = useOpenCourtUser();
+
+  const [sentCandidateProfileIds, setSentCandidateProfileIds] = useState<
+    Set<number>
+  >(() => new Set());
 
   const [areaFilter, setAreaFilter] = useState("all");
   const [tierFilter, setTierFilter] = useState("all");
@@ -97,6 +100,25 @@ const TalentSearch = () => {
       cancelled = true;
     };
   }, [areaFilter, tierFilter, locationFilter]);
+
+  const refreshFirmIntroTargets = useCallback(async () => {
+    if (!localUser?.id || localUser.account_type !== "firm") {
+      setSentCandidateProfileIds(new Set());
+      return;
+    }
+    try {
+      const rows = await listIntroductionsForFirm(localUser.id);
+      setSentCandidateProfileIds(
+        new Set(rows.map((r) => r.candidate_profile_id)),
+      );
+    } catch {
+      setSentCandidateProfileIds(new Set());
+    }
+  }, [localUser?.id, localUser?.account_type]);
+
+  useEffect(() => {
+    void refreshFirmIntroTargets();
+  }, [refreshFirmIntroTargets]);
 
   // Intro request fields
   const [introMessage, setIntroMessage] = useState("");
@@ -163,6 +185,12 @@ const TalentSearch = () => {
           : undefined,
       });
       setIntroSent(true);
+      setSentCandidateProfileIds((prev) => {
+        const next = new Set(prev);
+        next.add(introModal.id);
+        return next;
+      });
+      void refreshFirmIntroTargets();
       toast.success("Introduction request sent");
     } catch (e: unknown) {
       const msg =
@@ -178,83 +206,18 @@ const TalentSearch = () => {
     setJoinOverlayCollapsed(true);
   };
 
-  const canSendIntro = introMessage.trim() && introTitle.trim() && introLocation && introPracticeArea && introEmploymentType && introWorkArrangement && introSponsorship;
+  const canSendIntro =
+    Boolean(introMessage.trim()) &&
+    Boolean(introTitle.trim()) &&
+    Boolean(introLocation) &&
+    Boolean(introPracticeArea) &&
+    Boolean(introEmploymentType) &&
+    Boolean(introWorkArrangement) &&
+    Boolean(introSponsorship) &&
+    Boolean(introSalaryBand);
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-50">
-        <div className="container max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
-          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</Link>
-          <div className="flex items-center gap-3">
-            {signedIn && clerkLoaded ? (
-              <>
-                {isFirm && (
-                  <Button variant="ghost" size="sm" asChild>
-                    <Link href="/firm-dashboard">Dashboard</Link>
-                  </Button>
-                )}
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/notifications">Notifications</Link>
-                </Button>
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <Button variant="outline" size="sm" className="gap-1.5">
-                      <User className="h-3.5 w-3.5" /> Account{" "}
-                      <ChevronDown className="h-3 w-3" />
-                    </Button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end" className="w-64">
-                    {localUser?.account_type === "candidate" && (
-                      <>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            href="/profile-builder"
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <Briefcase className="h-3.5 w-3.5" /> My profile
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem asChild>
-                          <Link
-                            href="/lawyer-settings"
-                            className="flex items-center gap-2 cursor-pointer"
-                          >
-                            <Settings className="h-3.5 w-3.5" /> Settings
-                          </Link>
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                      </>
-                    )}
-                    <DropdownMenuItem
-                      onClick={() =>
-                        void signOut({ redirectUrl: "/" }).catch(() =>
-                          toast.error("Could not sign out"),
-                        )
-                      }
-                      className="cursor-pointer"
-                    >
-                      Sign out
-                    </DropdownMenuItem>
-                  </DropdownMenuContent>
-                </DropdownMenu>
-              </>
-            ) : (
-              <>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/profile-builder">Join as Lawyer</Link>
-                </Button>
-                <Button variant="ghost" size="sm" asChild>
-                  <Link href="/firm-onboarding">Join as Firm</Link>
-                </Button>
-                <Button size="sm" asChild>
-                  <Link href={signInSearch}>Log In</Link>
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-      </nav>
-
       <div className="container max-w-7xl mx-auto px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <div>
@@ -381,16 +344,26 @@ const TalentSearch = () => {
                 size="sm"
                 className="w-full mt-2"
                 onClick={() => openIntroModal(c)}
-                disabled={!isFirm}
+                disabled={
+                  !isFirm || sentCandidateProfileIds.has(c.id)
+                }
                 title={
                   !signedIn
                     ? "Sign in to request introductions"
                     : !isFirm
                       ? "Firm accounts can request introductions"
-                      : undefined
+                      : sentCandidateProfileIds.has(c.id)
+                        ? "You already sent an introduction request"
+                        : undefined
                 }
               >
-                <Send className="mr-2 h-3.5 w-3.5" /> Request Introduction
+                {sentCandidateProfileIds.has(c.id) ? (
+                  "Request sent"
+                ) : (
+                  <>
+                    <Send className="mr-2 h-3.5 w-3.5" /> Request Introduction
+                  </>
+                )}
               </Button>
               {signedIn && !isFirm && (
                 <p className="text-[11px] text-muted-foreground text-center mt-1.5">

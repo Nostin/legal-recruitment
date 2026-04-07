@@ -95,6 +95,15 @@ export async function listIntroductionsForCandidate(
   return parseJson<IntroductionRead[]>(res);
 }
 
+export async function listIntroductionsForFirm(
+  userId: number,
+): Promise<IntroductionRead[]> {
+  const res = await fetch(`${base()}/for-firm/${userId}`, {
+    method: "GET",
+  });
+  return parseJson<IntroductionRead[]>(res);
+}
+
 export async function patchIntroductionStatus(
   introId: number,
   body: { candidate_user_id: number; status: "accepted" | "declined" },

@@ -131,6 +131,42 @@ def list_for_candidate(
     return out
 
 
+@router.get("/for-firm/{user_id}", response_model=list[IntroductionRead])
+def list_for_firm(
+    user_id: int,
+    db: Session = Depends(get_db),
+) -> list[IntroductionRead]:
+    firm_user = db.get(User, user_id)
+    if firm_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Firm user not found",
+        )
+    if firm_user.account_type != AccountType.firm:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="User account_type must be firm",
+        )
+    firm_profile = (
+        db.query(FirmProfile).filter(FirmProfile.user_id == user_id).first()
+    )
+    if firm_profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Firm profile not found for this user",
+        )
+    rows = (
+        db.query(IntroductionRequest)
+        .filter(IntroductionRequest.firm_profile_id == firm_profile.id)
+        .order_by(IntroductionRequest.created_at.desc())
+        .all()
+    )
+    out: list[IntroductionRead] = []
+    for row in rows:
+        out.append(_intro_to_read(row, firm_profile.firm_name))
+    return out
+
+
 @router.patch("/{intro_id}", response_model=IntroductionRead)
 def patch_introduction_status(
     intro_id: int,

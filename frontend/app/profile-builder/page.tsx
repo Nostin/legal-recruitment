@@ -324,13 +324,6 @@ const ProfileBuilder = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-background/80 backdrop-blur-lg">
-        <div className="container max-w-6xl mx-auto flex items-center justify-between h-16 px-6">
-          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</Link>
-          <span className="text-sm text-muted-foreground">Step {step} of {TOTAL_STEPS}</span>
-        </div>
-      </nav>
-
       {/* Progress bar */}
       <div className="h-1 bg-muted">
         <motion.div
@@ -370,7 +363,12 @@ const ProfileBuilder = () => {
           {/* Form */}
           <div className="lg:col-span-3 space-y-8">
             <div>
-              <h1 className="font-display text-3xl font-semibold text-foreground">Build your anonymous profile</h1>
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <h1 className="font-display text-3xl font-semibold text-foreground">Build your anonymous profile</h1>
+                <span className="text-sm text-muted-foreground shrink-0">
+                  Step {step} of {TOTAL_STEPS}
+                </span>
+              </div>
               <p className="mt-2 text-muted-foreground">Your identity is never shown. Only structured data is visible to firms.</p>
               {loadedRow && (
                 <p className="mt-2 text-xs text-muted-foreground">

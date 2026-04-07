@@ -1,7 +1,7 @@
 "use client"
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useUser } from "@clerk/nextjs";
 import { motion } from "framer-motion";
 import { Search, Building2, Briefcase, MapPin, Users, Pencil } from "lucide-react";
 import { Button } from "@/app/components/ui/button";
@@ -23,7 +23,6 @@ const fadeUp = {
 
 const FirmDashboard = () => {
   const { isLoaded: clerkLoaded } = useUser();
-  const { signOut } = useClerk();
   const { localUser, bootstrapLoading, bootstrapError } = useOpenCourtUser();
 
   const [firm, setFirm] = useState<FirmRead | null>(null);
@@ -68,24 +67,6 @@ const FirmDashboard = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-50">
-        <div className="container max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
-          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</Link>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild><Link href="/search">Search Talent</Link></Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() =>
-                void signOut({ redirectUrl: "/" }).catch(() => {})
-              }
-            >
-              Sign out
-            </Button>
-          </div>
-        </div>
-      </nav>
-
       <div className="container max-w-7xl mx-auto px-6 py-8">
         {bootstrapError && (
           <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">
@@ -113,7 +94,7 @@ const FirmDashboard = () => {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline" size="sm">
+            <Button asChild variant="outline">
               <Link href="/firm-onboarding"><Pencil className="mr-2 h-4 w-4" /> Edit firm profile</Link>
             </Button>
             <Button asChild>

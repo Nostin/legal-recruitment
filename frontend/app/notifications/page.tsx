@@ -169,16 +169,6 @@ const Notifications = () => {
 
   return (
     <div className="min-h-screen bg-background">
-      <nav className="border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-50">
-        <div className="container max-w-6xl mx-auto flex items-center justify-between h-16 px-6">
-          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</Link>
-          <div className="flex items-center gap-3">
-            <Button size="sm" variant="ghost" asChild><Link href="/lawyer-settings">Settings</Link></Button>
-            <Button size="sm" variant="outline" asChild><Link href="/">Home</Link></Button>
-          </div>
-        </div>
-      </nav>
-
       <div className="container max-w-3xl mx-auto px-6 py-12">
         {bootstrapError && (
           <p className="rounded-lg border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive mb-6">

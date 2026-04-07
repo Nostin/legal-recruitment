@@ -15,23 +15,8 @@ const fadeUp = {
 const Landing = () => {
   return (
     <div className="min-h-screen bg-background">
-      {/* Nav */}
-      <nav className="fixed top-8 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
-        <div className="container max-w-6xl mx-auto flex items-center justify-between h-16 px-6">
-          <span className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</span>
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="sm" asChild>
-              <Link href="/search">For Firms</Link>
-            </Button>
-            <Button size="sm" asChild>
-              <Link href="/profile-builder">Get Started</Link>
-            </Button>
-          </div>
-        </div>
-      </nav>
-
-      {/* Hero */}
-      <section className="pt-40 pb-32 px-6">
+      {/* Hero — padding clears global AppHeader (h-16) */}
+      <section className="pt-28 pb-32 px-6">
         <div className="container max-w-4xl mx-auto text-center">
           <motion.h1
             className="font-display text-5xl md:text-7xl font-semibold text-foreground tracking-tight leading-[1.1] text-balance"
