@@ -184,7 +184,7 @@ const TalentSearch = () => {
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
-          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Counsel</Link>
+          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</Link>
           <div className="flex items-center gap-3">
             {signedIn && clerkLoaded ? (
               <>
@@ -440,7 +440,7 @@ const TalentSearch = () => {
             onClick={() => { setShowJoinOverlay(true); setJoinOverlayCollapsed(false); }}
           >
             <Users className="h-4 w-4 text-accent" />
-            Join Counsel
+            Join Open Court
             <ChevronUp className="h-3.5 w-3.5 text-muted-foreground" />
           </motion.button>
         )}

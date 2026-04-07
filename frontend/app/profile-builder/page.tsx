@@ -326,7 +326,7 @@ const ProfileBuilder = () => {
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border bg-background/80 backdrop-blur-lg">
         <div className="container max-w-6xl mx-auto flex items-center justify-between h-16 px-6">
-          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Counsel</Link>
+          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</Link>
           <span className="text-sm text-muted-foreground">Step {step} of {TOTAL_STEPS}</span>
         </div>
       </nav>

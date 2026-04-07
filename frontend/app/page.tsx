@@ -16,9 +16,9 @@ const Landing = () => {
   return (
     <div className="min-h-screen bg-background">
       {/* Nav */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
+      <nav className="fixed top-8 left-0 right-0 z-50 bg-background/80 backdrop-blur-lg border-b border-border">
         <div className="container max-w-6xl mx-auto flex items-center justify-between h-16 px-6">
-          <span className="font-display text-xl font-semibold text-foreground tracking-tight">Counsel</span>
+          <span className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</span>
           <div className="flex items-center gap-3">
             <Button variant="ghost" size="sm" asChild>
               <Link href="/search">For Firms</Link>
@@ -75,7 +75,7 @@ const Landing = () => {
             {[
               { icon: Shield, title: "Completely Anonymous", desc: "Your identity stays hidden until you decide to reveal it. No firm sees your name without your consent." },
               { icon: Eye, title: "Profiles Verified Monthly", desc: "Every profile is reviewed to maintain quality. Firms trust that data is current and accurate." },
-              { icon: Users, title: "Used by Top-Tier Firms", desc: "Leading firms use Counsel to find passive candidates who aren't on the market — yet." },
+              { icon: Users, title: "Used by Top-Tier Firms", desc: "Leading firms use Open Court to find passive candidates who aren't on the market — yet." },
             ].map((item, i) => (
               <motion.div
                 key={item.title}
@@ -96,7 +96,7 @@ const Landing = () => {
       {/* Footer */}
       <footer className="py-12 px-6 border-t border-border">
         <div className="container max-w-6xl mx-auto flex items-center justify-between">
-          <span className="font-display text-sm text-muted-foreground">© 2026 Counsel</span>
+          <span className="font-display text-sm text-muted-foreground">© 2026 Open Court</span>
           <span className="text-xs text-muted-foreground">Discreet. Direct. Recruiter-free.</span>
         </div>
       </footer>

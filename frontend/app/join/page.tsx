@@ -89,7 +89,7 @@ const JoinChoice = () => {
     <div className="min-h-screen bg-background">
       <nav className="border-b border-border bg-background/80 backdrop-blur-lg sticky top-0 z-50">
         <div className="container max-w-7xl mx-auto flex items-center justify-between h-16 px-6">
-          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Counsel</Link>
+          <Link href="/" className="font-display text-xl font-semibold text-foreground tracking-tight">Open Court</Link>
           <Button size="sm" variant="ghost" asChild><Link href="/">Back to Home</Link></Button>
         </div>
       </nav>
